@@ -1,0 +1,3 @@
+[workspace]
+members = ["local-dns", "local-ssl", "localtool"]
+resolver = "2"

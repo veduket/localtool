@@ -1,0 +1,30 @@
+[package]
+name = "local-ssl"
+version = "0.1.0"
+edition = "2021"
+authors = ["Yared Getachew"]
+repository = "https://github.com/veduket/local-ssl"
+description = "Local HTTPS certificate generation for development — pair with local-dns"
+
+[lib]
+name = "local_ssl"
+path = "src/lib.rs"
+
+[[bin]]
+name = "local-ssl"
+path = "src/bin.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+colored = "2"
+rcgen = "0.14"
+time = "0.3"
+pem = "3"
+x509-parser = "0.17"
+base64 = "0.22"
+rustls = "0.23"
+rustls-pki-types = "1"
+webpki-roots = "0.26"
+
+[dev-dependencies]
+tempfile = "3"
