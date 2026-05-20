@@ -1,0 +1,23 @@
+[package]
+name = "local-dns"
+version = "0.1.0"
+edition = "2021"
+authors = ["Yared Getachew"]
+repository = "https://github.com/veduket/local-dns"
+description = "Local DNS management with profiles, wildcards, and system detection"
+
+[lib]
+name = "local_dns"
+path = "src/lib.rs"
+
+[[bin]]
+name = "local-dns"
+path = "src/bin.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+rusqlite = { version = "0.31", features = ["bundled"] }
+colored = "2"
+
+[dev-dependencies]
+tempfile = "3"
