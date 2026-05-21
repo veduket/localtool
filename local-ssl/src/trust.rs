@@ -27,16 +27,22 @@ fn macos_trust_check(cert_path: &Path) -> bool {
         Ok(c) => c,
         Err(_) => return false,
     };
-    let cn = pem.lines()
+    let cn = pem
+        .lines()
         .find(|l| l.contains("CN="))
         .and_then(|l| l.split("CN=").nth(1))
         .map(|s| s.trim_end_matches('"'))
         .unwrap_or("unknown");
     Command::new("security")
-        .args(["find-certificate", "-c", cn, "/Library/Keychains/System.keychain"])
+        .args([
+            "find-certificate",
+            "-c",
+            cn,
+            "/Library/Keychains/System.keychain",
+        ])
         .output()
         .ok()
-        .map_or(false, |o| o.status.success())
+        .is_some_and(|o| o.status.success())
 }
 
 fn linux_trust_check(cert_path: &Path) -> bool {
@@ -68,7 +74,8 @@ fn linux_trust_check(cert_path: &Path) -> bool {
 }
 
 fn linux_install(cert_path: &Path) -> Result<(), String> {
-    let cert = std::fs::read_to_string(cert_path).map_err(|e| format!("Cannot read CA cert: {e}"))?;
+    let cert =
+        std::fs::read_to_string(cert_path).map_err(|e| format!("Cannot read CA cert: {e}"))?;
 
     let dest = if Path::new("/usr/local/share/ca-certificates").is_dir() {
         "/usr/local/share/ca-certificates/local-ssl.crt"
@@ -93,7 +100,9 @@ fn linux_install(cert_path: &Path) -> Result<(), String> {
 
     for args in update_cmds {
         if which(args[0]) {
-            let out = Command::new(args[0]).args(&args[1..]).output()
+            let out = Command::new(args[0])
+                .args(&args[1..])
+                .output()
                 .map_err(|e| format!("Cannot run {}: {e}", args[0]))?;
             if out.status.success() {
                 return Ok(());
@@ -107,7 +116,10 @@ fn linux_install(cert_path: &Path) -> Result<(), String> {
         }
     }
 
-    Err("CA cert copied but trust DB update failed — run manually:\n  sudo update-ca-certificates".into())
+    Err(
+        "CA cert copied but trust DB update failed — run manually:\n  sudo update-ca-certificates"
+            .into(),
+    )
 }
 
 fn macos_install(cert_path: &Path) -> Result<(), String> {
@@ -147,7 +159,7 @@ fn which(name: &str) -> bool {
         .arg(name)
         .output()
         .ok()
-        .map_or(false, |o| o.status.success())
+        .is_some_and(|o| o.status.success())
 }
 
 #[cfg(test)]

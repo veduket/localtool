@@ -34,8 +34,12 @@ impl CaStore {
     pub fn ca_params() -> CertificateParams {
         let mut params = CertificateParams::new(vec!["local-ssl Development CA".to_string()])
             .expect("Cannot create CA params");
-        params.distinguished_name.push(DnType::CommonName, "local-ssl Development CA");
-        params.distinguished_name.push(DnType::OrganizationName, "local-ssl");
+        params
+            .distinguished_name
+            .push(DnType::CommonName, "local-ssl Development CA");
+        params
+            .distinguished_name
+            .push(DnType::OrganizationName, "local-ssl");
         params.is_ca = IsCa::Ca(BasicConstraints::Unconstrained);
         params.key_usages = vec![KeyUsagePurpose::KeyCertSign, KeyUsagePurpose::CrlSign];
         params
@@ -45,8 +49,7 @@ impl CaStore {
         fs::create_dir_all(&self.dir)
             .map_err(|e| format!("Cannot create {}: {e}", self.dir.display()))?;
 
-        let key_pair =
-            KeyPair::generate().map_err(|e| format!("Cannot generate CA key: {e}"))?;
+        let key_pair = KeyPair::generate().map_err(|e| format!("Cannot generate CA key: {e}"))?;
 
         let mut params = Self::ca_params();
         params.not_before = ::time::OffsetDateTime::now_utc();
@@ -59,15 +62,14 @@ impl CaStore {
 
         fs::write(&self.key_path, key_pair.serialize_pem())
             .map_err(|e| format!("Cannot write CA key: {e}"))?;
-        fs::write(&self.cert_path, cert.pem())
-            .map_err(|e| format!("Cannot write CA cert: {e}"))?;
+        fs::write(&self.cert_path, cert.pem()).map_err(|e| format!("Cannot write CA cert: {e}"))?;
 
         Ok(())
     }
 
     pub fn load_key(&self) -> Result<KeyPair, String> {
-        let pem = fs::read_to_string(&self.key_path)
-            .map_err(|e| format!("Cannot read CA key: {e}"))?;
+        let pem =
+            fs::read_to_string(&self.key_path).map_err(|e| format!("Cannot read CA key: {e}"))?;
         KeyPair::from_pem(&pem).map_err(|e| format!("Cannot parse CA key: {e}"))
     }
 
@@ -82,13 +84,19 @@ impl CaStore {
             .map_err(|e| format!("Cannot parse CA cert: {e}"))?
             .1;
 
-        let cn = parsed.subject().iter_common_name()
-            .next().and_then(|a| a.as_str().ok())
+        let cn = parsed
+            .subject()
+            .iter_common_name()
+            .next()
+            .and_then(|a| a.as_str().ok())
             .unwrap_or("(unknown)");
         let not_before = parsed.validity().not_before.to_datetime();
         let not_after = parsed.validity().not_after.to_datetime();
-        let issuer = parsed.issuer().iter_common_name()
-            .next().and_then(|a| a.as_str().ok())
+        let issuer = parsed
+            .issuer()
+            .iter_common_name()
+            .next()
+            .and_then(|a| a.as_str().ok())
             .unwrap_or("(unknown)");
         let serial = &parsed.tbs_certificate.serial;
 
@@ -147,10 +155,7 @@ mod tests {
     fn test_status_before_init() {
         let (store, _dir) = temp_store();
         let status = store.status().unwrap();
-        assert_eq!(
-            status,
-            "CA not initialized. Run `local-ssl init`."
-        );
+        assert_eq!(status, "CA not initialized. Run `local-ssl init`.");
     }
 
     #[test]

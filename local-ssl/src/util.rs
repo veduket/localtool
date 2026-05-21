@@ -21,9 +21,7 @@ mod tests {
     #[test]
     fn test_pem_decode_valid() {
         let data = "SGVsbG8gV29ybGQ=";
-        let pem = format!(
-            "-----BEGIN CERTIFICATE-----\n{data}\n-----END CERTIFICATE-----"
-        );
+        let pem = format!("-----BEGIN CERTIFICATE-----\n{data}\n-----END CERTIFICATE-----");
         let result = pem_decode(&pem).unwrap();
         assert_eq!(result, b"Hello World");
     }

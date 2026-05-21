@@ -1,6 +1,6 @@
 use colored::Colorize;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -18,11 +18,11 @@ pub struct Telemetry {
 }
 
 impl Telemetry {
-    pub fn load(data_dir: &PathBuf) -> Self {
+    pub fn load(data_dir: &Path) -> Self {
         let config_path = data_dir.join("telemetry.json");
         let config_dir = config_path.parent().unwrap();
-        let env_disabled = std::env::var(TELEMETRY_ENV_DISABLE).is_ok()
-            || std::env::var("DO_NOT_TRACK").is_ok();
+        let env_disabled =
+            std::env::var(TELEMETRY_ENV_DISABLE).is_ok() || std::env::var("DO_NOT_TRACK").is_ok();
         let now = now_secs();
 
         if let Ok(json) = fs::read_to_string(&config_path) {
@@ -30,36 +30,65 @@ impl Telemetry {
             let enabled = !env_disabled && Self::parse_enabled(&json).unwrap_or(true);
             let first_seen = Self::parse_first_seen(&json).unwrap_or(now);
             let last_ping = Self::parse_last_ping(&json).unwrap_or(0);
-            let mut t = Telemetry { uuid, enabled, first_seen, last_ping, usage_days: 0, config_path };
+            let mut t = Telemetry {
+                uuid,
+                enabled,
+                first_seen,
+                last_ping,
+                usage_days: 0,
+                config_path,
+            };
             t.usage_days = t.compute_usage_days();
             t
         } else {
             let uuid = Self::generate_uuid();
             let enabled = !env_disabled;
-            let config = TelemetryConfig { uuid: uuid.clone(), enabled, first_seen: now, last_ping: now };
+            let config = TelemetryConfig {
+                uuid: uuid.clone(),
+                enabled,
+                first_seen: now,
+                last_ping: now,
+            };
             if fs::create_dir_all(config_dir).is_ok() {
                 config.write(&config_path).ok();
             }
             let usage_days = 0;
-            Telemetry { uuid, enabled, first_seen: now, last_ping: now, usage_days, config_path }
+            Telemetry {
+                uuid,
+                enabled,
+                first_seen: now,
+                last_ping: now,
+                usage_days,
+                config_path,
+            }
         }
     }
 
     /// Fire a heartbeat if 24h has passed since last ping.
     /// Returns true if a heartbeat was sent (so callers can show a thank-you).
     pub fn maybe_heartbeat(&self) -> bool {
-        if !self.enabled || TELEMETRY_URL.is_empty() { return false; }
+        if !self.enabled || TELEMETRY_URL.is_empty() {
+            return false;
+        }
         let now = now_secs();
-        if now < self.last_ping + 86400 { return false; }
+        if now < self.last_ping + 86400 {
+            return false;
+        }
 
         let payload = format!(
             "uuid={}&tool=local-dns&version={}&os={}&event=heartbeat&age_days={}&ts={}",
-            self.uuid, env!("CARGO_PKG_VERSION"), std::env::consts::OS, self.usage_days, now
+            self.uuid,
+            env!("CARGO_PKG_VERSION"),
+            std::env::consts::OS,
+            self.usage_days,
+            now
         );
         let ok = Command::new("curl")
             .args(["-s", "-o", "/dev/null", "--max-time", "3"])
             .args(["-X", "POST", TELEMETRY_URL, "-d", &payload])
-            .status().map(|s| s.success()).unwrap_or(false);
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
 
         if ok {
             // Persist updated last_ping
@@ -77,7 +106,9 @@ impl Telemetry {
 
     /// Fire a single event (on command invocation).
     pub fn send_command_event(&self, command: &str, extra: &[(&str, &str)]) {
-        if !self.enabled || TELEMETRY_URL.is_empty() { return; }
+        if !self.enabled || TELEMETRY_URL.is_empty() {
+            return;
+        }
         let now = now_secs();
         let mut parts = vec![
             format!("uuid={}", self.uuid),
@@ -89,24 +120,48 @@ impl Telemetry {
             format!("age_days={}", self.usage_days),
             format!("ts={now}"),
         ];
-        for (k, v) in extra { parts.push(format!("{k}={v}")); }
+        for (k, v) in extra {
+            parts.push(format!("{k}={v}"));
+        }
         let payload = parts.join("&");
         Command::new("curl")
-            .args(["-s", "-o", "/dev/null", "--max-time", "3", "-X", "POST", TELEMETRY_URL, "-d", &payload])
-            .spawn().ok();
+            .args([
+                "-s",
+                "-o",
+                "/dev/null",
+                "--max-time",
+                "3",
+                "-X",
+                "POST",
+                TELEMETRY_URL,
+                "-d",
+                &payload,
+            ])
+            .spawn()
+            .ok();
     }
 
     pub fn enable(&mut self) -> Result<(), String> {
-        self.enabled = true; self.save()
+        self.enabled = true;
+        self.save()
     }
 
     pub fn disable(&mut self) -> Result<(), String> {
-        self.enabled = false; self.save()
+        self.enabled = false;
+        self.save()
     }
 
     pub fn status(&self) -> String {
-        let status = if self.enabled { "enabled ✓".green() } else { "disabled".yellow() };
-        let days = if self.usage_days == 0 { "first day!".green() } else { format!("{} days", self.usage_days).cyan() };
+        let status = if self.enabled {
+            "enabled ✓".green()
+        } else {
+            "disabled".yellow()
+        };
+        let days = if self.usage_days == 0 {
+            "first day!".green()
+        } else {
+            format!("{} days", self.usage_days).cyan()
+        };
         format!(
             "Anonymous telemetry: {status}\n\
              UUID:                   {}\n\
@@ -125,7 +180,11 @@ impl Telemetry {
 
     pub fn show_heartbeat_notice(&self) {
         if self.enabled && !TELEMETRY_URL.is_empty() {
-            let days = if self.usage_days > 0 { format!("{} days ", self.usage_days) } else { String::new() };
+            let days = if self.usage_days > 0 {
+                format!("{} days ", self.usage_days)
+            } else {
+                String::new()
+            };
             println!();
             println!("{}", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━".dimmed());
             println!(
@@ -136,7 +195,11 @@ impl Telemetry {
             println!("{} {PUBLISH_URL}", "Discover more tools:".dimmed());
             println!("{}", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━".dimmed());
         } else if !self.enabled && TELEMETRY_URL.is_empty() {
-            println!("{}", "ℹ Telemetry: set LOCAL_DNS_TELEMETRY_URL to enable anonymous usage reporting.".dimmed());
+            println!(
+                "{}",
+                "ℹ Telemetry: set LOCAL_DNS_TELEMETRY_URL to enable anonymous usage reporting."
+                    .dimmed()
+            );
         }
     }
 
@@ -152,7 +215,11 @@ impl Telemetry {
 
     fn compute_usage_days(&self) -> u64 {
         let now = now_secs();
-        if now > self.first_seen { (now - self.first_seen) / 86400 } else { 0 }
+        if now > self.first_seen {
+            (now - self.first_seen) / 86400
+        } else {
+            0
+        }
     }
 
     fn generate_uuid() -> String {
@@ -169,9 +236,13 @@ impl Telemetry {
     fn parse_enabled(json: &str) -> Option<bool> {
         let s = json.find("\"enabled\":")?;
         let val = json[s + 9..].trim_start();
-        if val.starts_with("true") { Some(true) }
-        else if val.starts_with("false") { Some(false) }
-        else { None }
+        if val.starts_with("true") {
+            Some(true)
+        } else if val.starts_with("false") {
+            Some(false)
+        } else {
+            None
+        }
     }
 
     fn parse_first_seen(json: &str) -> Option<u64> {
@@ -210,7 +281,10 @@ impl TelemetryConfig {
 }
 
 fn now_secs() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs()
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
 }
 
 fn format_ts(ts: u64) -> String {

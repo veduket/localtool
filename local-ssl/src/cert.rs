@@ -1,3 +1,4 @@
+use colored::Colorize;
 use rcgen::{CertificateParams, DnType, ExtendedKeyUsagePurpose, Issuer, KeyPair, KeyUsagePurpose};
 use std::fs;
 use std::io::Write;
@@ -5,7 +6,6 @@ use std::path::PathBuf;
 use std::time::Duration;
 use x509_parser::extensions::GeneralName;
 use x509_parser::prelude::*;
-use colored::Colorize;
 
 use crate::ca::CaStore;
 use crate::util;
@@ -41,8 +41,8 @@ pub fn generate(domain: &str, ca_store: &CaStore, sans: &[String]) -> Result<Cer
         alt_names.push(format!("*.{domain}"));
     }
 
-    let mut params = CertificateParams::new(alt_names)
-        .map_err(|e| format!("Cannot create params: {e}"))?;
+    let mut params =
+        CertificateParams::new(alt_names).map_err(|e| format!("Cannot create params: {e}"))?;
     params.distinguished_name.push(DnType::CommonName, domain);
     params.key_usages = vec![
         KeyUsagePurpose::DigitalSignature,
@@ -67,8 +67,7 @@ pub fn generate(domain: &str, ca_store: &CaStore, sans: &[String]) -> Result<Cer
     let key_path = out_dir.join("key.pem");
 
     fs::write(&cert_path, cert.pem()).map_err(|e| format!("Cannot write cert: {e}"))?;
-    fs::write(&key_path, key_pair.serialize_pem())
-        .map_err(|e| format!("Cannot write key: {e}"))?;
+    fs::write(&key_path, key_pair.serialize_pem()).map_err(|e| format!("Cannot write key: {e}"))?;
 
     Ok(CertBundle {
         domain: domain.to_string(),
@@ -101,8 +100,8 @@ fn parse_local_cert(domain: &str, ca_store: &CaStore) -> Result<ParsedCert, Stri
 
     let pem_data = fs::read_to_string(&cert_path).map_err(|e| format!("Cannot read cert: {e}"))?;
     let der = util::pem_decode(&pem_data)?;
-    let (_, parsed) = X509Certificate::from_der(&der)
-        .map_err(|e| format!("Cannot parse cert: {e}"))?;
+    let (_, parsed) =
+        X509Certificate::from_der(&der).map_err(|e| format!("Cannot parse cert: {e}"))?;
 
     let cn = parsed
         .subject()
@@ -125,10 +124,11 @@ pub fn show(domain: &str, ca_store: &CaStore) -> Result<String, String> {
     let p = parse_local_cert(domain, ca_store)?;
 
     let issuer_str = {
-        let pem_data = fs::read_to_string(&p.cert_path).map_err(|e| format!("Cannot read cert: {e}"))?;
+        let pem_data =
+            fs::read_to_string(&p.cert_path).map_err(|e| format!("Cannot read cert: {e}"))?;
         let der = util::pem_decode(&pem_data)?;
-        let (_, parsed) = X509Certificate::from_der(&der)
-            .map_err(|e| format!("Cannot parse cert: {e}"))?;
+        let (_, parsed) =
+            X509Certificate::from_der(&der).map_err(|e| format!("Cannot parse cert: {e}"))?;
         let out = parsed
             .issuer()
             .iter_common_name()
@@ -140,10 +140,11 @@ pub fn show(domain: &str, ca_store: &CaStore) -> Result<String, String> {
     };
 
     let sans: Vec<String> = {
-        let pem_data = fs::read_to_string(&p.cert_path).map_err(|e| format!("Cannot read cert: {e}"))?;
+        let pem_data =
+            fs::read_to_string(&p.cert_path).map_err(|e| format!("Cannot read cert: {e}"))?;
         let der = util::pem_decode(&pem_data)?;
-        let (_, parsed) = X509Certificate::from_der(&der)
-            .map_err(|e| format!("Cannot parse cert: {e}"))?;
+        let (_, parsed) =
+            X509Certificate::from_der(&der).map_err(|e| format!("Cannot parse cert: {e}"))?;
         parsed
             .subject_alternative_name()
             .map_err(|e| format!("Cannot parse SANs: {e}"))?
@@ -206,8 +207,13 @@ pub fn check_local(domain: &str, ca_store: &CaStore) -> Result<String, String> {
     out.push_str(&format!("{} {}\n", "Validity:".bold(), validity_str));
     out.push_str(&format!("{} {}\n", "Generated:".bold(), gen_date));
     out.push_str(&format!("{} {}\n", "Expires:".bold(), p.not_after));
-    out.push_str(&format!("{} {}\n", "Key file:".bold(), if key_ok { format!("{}", "present".green()) } else { format!("{}", "missing".red()) }));
-    out.push_str(&format!("{} {}\n", "Reload needed:".bold(), format!("{}", "no (certs are file-based, restart your server)".green())));
+    let key_status = if key_ok { "present".green() } else { "missing".red() };
+    out.push_str(&format!("{} {}\n", "Key file:".bold(), key_status));
+    out.push_str(&format!(
+        "{} {}\n",
+        "Reload needed:".bold(),
+        "no (certs are file-based, restart your server)".green()
+    ));
 
     Ok(out)
 }
@@ -221,28 +227,34 @@ pub fn check_remote(host: &str, port: u16) -> Result<String, String> {
         .map_err(|_| format!("Invalid hostname: {host}"))?
         .to_owned();
 
-    let root_store = rustls::RootCertStore::from_iter(
-        webpki_roots::TLS_SERVER_ROOTS.iter().cloned(),
-    );
+    let root_store =
+        rustls::RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
     let config = rustls::ClientConfig::builder()
         .with_root_certificates(root_store)
         .with_no_client_auth();
-    let mut conn = rustls::ClientConnection::new(
-        std::sync::Arc::new(config),
-        server_name,
-    )
-    .map_err(|e| format!("TLS error: {e}"))?;
+    let mut conn = rustls::ClientConnection::new(std::sync::Arc::new(config), server_name)
+        .map_err(|e| format!("TLS error: {e}"))?;
 
     let mut tls = rustls::Stream::new(&mut conn, &mut tcp);
-    tls.flush().map_err(|e| format!("TLS handshake error: {e}"))?;
+    tls.flush()
+        .map_err(|e| format!("TLS handshake error: {e}"))?;
 
     let certs = conn.peer_certificates().unwrap_or(&[]);
     if certs.is_empty() {
         return Err("No certificate presented by server".into());
     }
 
-    let mut out = format!("{} {}:{}\n", "Remote server:".cyan().bold(), host.cyan(), port.to_string().cyan());
-    out.push_str(&format!("{} {}\n\n", "Certificate chain:".bold(), format!("{} certs", certs.len()).cyan()));
+    let mut out = format!(
+        "{} {}:{}\n",
+        "Remote server:".cyan().bold(),
+        host.cyan(),
+        port.to_string().cyan()
+    );
+    out.push_str(&format!(
+        "{} {}\n\n",
+        "Certificate chain:".bold(),
+        format!("{} certs", certs.len()).cyan()
+    ));
 
     for (i, cert_der) in certs.iter().enumerate() {
         let (_, parsed) = X509Certificate::from_der(cert_der)
@@ -294,7 +306,11 @@ pub fn check_remote(host: &str, port: u16) -> Result<String, String> {
             })
             .unwrap_or_default();
 
-        out.push_str(&format!("  {} {} (index {i})\n", "Certificate".bold(), (i + 1).to_string().cyan()));
+        out.push_str(&format!(
+            "  {} {} (index {i})\n",
+            "Certificate".bold(),
+            (i + 1).to_string().cyan()
+        ));
         out.push_str(&format!("    {} {}\n", "Subject:".bold(), cn));
         out.push_str(&format!("    {} {}\n", "Issuer:".bold(), issuer));
         out.push_str(&format!("    {} {}\n", "Validity:".bold(), validity));
@@ -405,10 +421,7 @@ mod tests {
         };
         let result = show("nonexistent.test", &store);
         assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err(),
-            "No certificate for 'nonexistent.test'"
-        );
+        assert_eq!(result.unwrap_err(), "No certificate for 'nonexistent.test'");
     }
 
     #[test]

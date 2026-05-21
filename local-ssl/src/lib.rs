@@ -47,11 +47,18 @@ pub enum Commands {
         domain: String,
     },
     /// Manage anonymous usage telemetry
-    Telemetry { #[command(subcommand)] action: TelemetryAction },
+    Telemetry {
+        #[command(subcommand)]
+        action: TelemetryAction,
+    },
 }
 
 #[derive(Subcommand)]
-pub enum TelemetryAction { Enable, Disable, Status }
+pub enum TelemetryAction {
+    Enable,
+    Disable,
+    Status,
+}
 
 pub fn run(args: &[String]) -> Result<String, String> {
     let store = ca::CaStore::new();
@@ -103,12 +110,20 @@ fn handle_telemetry(action: TelemetryAction, store: &ca::CaStore) -> Result<Stri
         TelemetryAction::Enable => {
             let mut t = telemetry::Telemetry::load(&store.dir);
             t.enable()?;
-            Ok(format!("{} Anonymous telemetry enabled\n{}", "✓".green(), t.status()))
+            Ok(format!(
+                "{} Anonymous telemetry enabled\n{}",
+                "✓".green(),
+                t.status()
+            ))
         }
         TelemetryAction::Disable => {
             let mut t = telemetry::Telemetry::load(&store.dir);
             t.disable()?;
-            Ok(format!("{} Anonymous telemetry disabled\n{}", "✓".yellow(), t.status()))
+            Ok(format!(
+                "{} Anonymous telemetry disabled\n{}",
+                "✓".yellow(),
+                t.status()
+            ))
         }
         TelemetryAction::Status => {
             let t = telemetry::Telemetry::load(&store.dir);
@@ -179,11 +194,7 @@ fn cmd_generate(
     let sans: Vec<String> = domains[1..].to_vec();
 
     let bundle = cert::generate(primary, store, &sans)?;
-    println!(
-        "{} Certificate for '{}'",
-        "✓".green(),
-        primary.bold()
-    );
+    println!("{} Certificate for '{}'", "✓".green(), primary.bold());
     println!("  {} {}", "Cert:".bold(), bundle.cert_path.cyan());
     println!("  {} {}", "Key:".bold(), bundle.key_path.cyan());
     println!();
@@ -199,11 +210,7 @@ fn cmd_generate(
         bundle.key_path,
         bundle.cert_path
     );
-    println!(
-        "  {} local-dns add {} 127.0.0.1",
-        "DNS:".dimmed(),
-        primary
-    );
+    println!("  {} local-dns add {} 127.0.0.1", "DNS:".dimmed(), primary);
     println!();
     println!(
         "{}",
@@ -256,10 +263,7 @@ fn cmd_trust(store: &ca::CaStore) -> Result<String, String> {
     if trust::is_ca_trusted(&store.cert_path) {
         return Ok(format!("{} CA is already trusted.", "✓".green()));
     }
-    println!(
-        "{}",
-        "Installing CA into system trust store...".cyan()
-    );
+    println!("{}", "Installing CA into system trust store...".cyan());
     trust::install_ca(&store.cert_path)?;
     Ok(format!("{} CA trusted system-wide", "✓".green()))
 }
@@ -284,11 +288,7 @@ fn cmd_status(store: &ca::CaStore) -> Result<String, String> {
     println!("{} {}", "System trust:".bold(), trust_status);
 
     let count = cert::list(store)?.len();
-    println!(
-        "{} {}",
-        "Certificates:".bold(),
-        count.to_string().cyan()
-    );
+    println!("{} {}", "Certificates:".bold(), count.to_string().cyan());
 
     Ok(String::new())
 }

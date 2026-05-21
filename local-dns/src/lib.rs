@@ -38,7 +38,11 @@ fn log_path() -> PathBuf {
 fn ensure_run_dir() -> Result<PathBuf, String> {
     let r = run_dir();
     if r.exists() && !r.is_dir() {
-        eprintln!("{} Removing stale file at {}", "⚠".yellow(), r.display().to_string().cyan());
+        eprintln!(
+            "{} Removing stale file at {}",
+            "⚠".yellow(),
+            r.display().to_string().cyan()
+        );
         fs::remove_file(&r).map_err(|e| format!("Cannot remove {}: {e}", r.display()))?;
     }
     fs::create_dir_all(&r).map_err(|e| format!("Cannot create {}: {e}", r.display()))?;
@@ -87,9 +91,17 @@ fn default_upstream() -> (String, u16) {
 
 fn has_tool(name: &str) -> bool {
     if cfg!(target_os = "windows") {
-        Command::new("where").arg(name).output().ok().map_or(false, |o| o.status.success())
+        Command::new("where")
+            .arg(name)
+            .output()
+            .ok()
+            .is_some_and(|o| o.status.success())
     } else {
-        Command::new("which").arg(name).output().ok().map_or(false, |o| o.status.success())
+        Command::new("which")
+            .arg(name)
+            .output()
+            .ok()
+            .is_some_and(|o| o.status.success())
     }
 }
 
@@ -123,18 +135,30 @@ fn detect_dns_tools() -> Vec<(u16, String)> {
         }
     } else {
         // Unix: use ss, fallback to lsof, fallback to netstat
-        let out = Command::new("ss").args(["-tlnp"]).output()
+        let out = Command::new("ss")
+            .args(["-tlnp"])
+            .output()
             .or_else(|_| Command::new("lsof").args(["-i", "-P", "-n"]).output())
             .or_else(|_| Command::new("netstat").args(["-tlnp"]).output());
 
         if let Ok(output) = out {
             for line in String::from_utf8_lossy(&output.stdout).lines() {
                 for &port in &[53u16, 5053, 5353, 5354, 5300, 853, 443] {
-                    if !line.contains(&format!(":{port}")) { continue; }
+                    if !line.contains(&format!(":{port}")) {
+                        continue;
+                    }
                     let proc = if let Some(pidx) = line.find("users:") {
-                        line[pidx..].split('"').nth(1).unwrap_or("unknown").to_string()
+                        line[pidx..]
+                            .split('"')
+                            .nth(1)
+                            .unwrap_or("unknown")
+                            .to_string()
                     } else if let Some(pidx) = line.find("->") {
-                        line[pidx..].split_whitespace().next().unwrap_or("unknown").to_string()
+                        line[pidx..]
+                            .split_whitespace()
+                            .next()
+                            .unwrap_or("unknown")
+                            .to_string()
                     } else {
                         "unknown".to_string()
                     };
@@ -151,16 +175,36 @@ fn detect_services() -> Vec<String> {
     let checks = if cfg!(target_os = "macos") {
         vec!["dnsmasq", "dnscrypt-proxy", "unbound", "avahi-daemon"]
     } else {
-        vec!["dnsmasq", "dnsdist", "dnscrypt-proxy", "systemd-resolved", "named", "unbound", "avahi-daemon"]
+        vec![
+            "dnsmasq",
+            "dnsdist",
+            "dnscrypt-proxy",
+            "systemd-resolved",
+            "named",
+            "unbound",
+            "avahi-daemon",
+        ]
     };
 
     for name in &checks {
         let active = if supports_systemd() {
-            Command::new("systemctl").args(["is-active", name, "--quiet"]).status().ok().map_or(false, |s| s.success())
+            Command::new("systemctl")
+                .args(["is-active", name, "--quiet"])
+                .status()
+                .ok()
+                .is_some_and(|s| s.success())
         } else if supports_launchctl() {
-            Command::new("launchctl").args(["print", &format!("system/{name}")]).status().ok().map_or(false, |s| s.success())
-        } else { false };
-        if active { services.push(name.to_string()); }
+            Command::new("launchctl")
+                .args(["print", &format!("system/{name}")])
+                .status()
+                .ok()
+                .is_some_and(|s| s.success())
+        } else {
+            false
+        };
+        if active {
+            services.push(name.to_string());
+        }
     }
 
     // Additional pgrep check on Unix
@@ -190,46 +234,156 @@ const DNSMASQ_SERVICE: &str = "local-dnsmasq";
 
 #[derive(Parser)]
 #[command(name = "local-dns", about = "Local DNS management", version)]
-pub struct Cli { #[command(subcommand)] pub command: Commands }
+pub struct Cli {
+    #[command(subcommand)]
+    pub command: Commands,
+}
 
 #[derive(Subcommand)]
 pub enum Commands {
-    Add { domain: String, ip: String, #[arg(short, long)] zone: Option<String>, #[arg(short = 'g', long)] group: Option<String>, #[arg(short, long)] comment: Option<String> },
-    Remove { domain: String },
-    Move { domain: String, #[arg(short, long)] zone: Option<String>, #[arg(short = 'g', long)] group: Option<String> },
-    Copy { domain: String, #[arg(short, long)] zone: Option<String>, #[arg(short = 'g', long)] group: Option<String> },
-    Edit { domain: String, #[arg(short, long)] ip: Option<String>, #[arg(short, long)] comment: Option<String> },
+    Add {
+        domain: String,
+        ip: String,
+        #[arg(short, long)]
+        zone: Option<String>,
+        #[arg(short = 'g', long)]
+        group: Option<String>,
+        #[arg(short, long)]
+        comment: Option<String>,
+    },
+    Remove {
+        domain: String,
+    },
+    Move {
+        domain: String,
+        #[arg(short, long)]
+        zone: Option<String>,
+        #[arg(short = 'g', long)]
+        group: Option<String>,
+    },
+    Copy {
+        domain: String,
+        #[arg(short, long)]
+        zone: Option<String>,
+        #[arg(short = 'g', long)]
+        group: Option<String>,
+    },
+    Edit {
+        domain: String,
+        #[arg(short, long)]
+        ip: Option<String>,
+        #[arg(short, long)]
+        comment: Option<String>,
+    },
     List,
-    Profile { #[command(subcommand)] action: ProfileAction },
-    Zone { #[command(subcommand)] action: ZoneAction },
-    Group { #[command(subcommand)] action: GroupAction },
+    Profile {
+        #[command(subcommand)]
+        action: ProfileAction,
+    },
+    Zone {
+        #[command(subcommand)]
+        action: ZoneAction,
+    },
+    Group {
+        #[command(subcommand)]
+        action: GroupAction,
+    },
     Init,
     Reset,
     Status,
     Apply,
-    Logs { #[arg(short, long)] follow: bool, #[arg(short, long)] errors: bool, #[arg(short, long, default_value = "50")] lines: usize },
+    Logs {
+        #[arg(short, long)]
+        follow: bool,
+        #[arg(short, long)]
+        errors: bool,
+        #[arg(short, long, default_value = "50")]
+        lines: usize,
+    },
     Detect,
-    Check { domain: String },
-    Telemetry { #[command(subcommand)] action: TelemetryAction },
+    Check {
+        domain: String,
+    },
+    Telemetry {
+        #[command(subcommand)]
+        action: TelemetryAction,
+    },
 }
 
 #[derive(Subcommand)]
-pub enum TelemetryAction { Enable, Disable, Status }
+pub enum TelemetryAction {
+    Enable,
+    Disable,
+    Status,
+}
 
 #[derive(Subcommand)]
-pub enum ProfileAction { Show, Switch { name: String }, Create { name: String }, List, Delete { name: String } }
+pub enum ProfileAction {
+    Show,
+    Switch { name: String },
+    Create { name: String },
+    List,
+    Delete { name: String },
+}
 #[derive(Subcommand)]
-pub enum ZoneAction { Create { name: String, #[arg(short, long)] display: Option<String> }, List, Delete { name: String }, Show { name: String } }
+pub enum ZoneAction {
+    Create {
+        name: String,
+        #[arg(short, long)]
+        display: Option<String>,
+    },
+    List,
+    Delete {
+        name: String,
+    },
+    Show {
+        name: String,
+    },
+}
 #[derive(Subcommand)]
-pub enum GroupAction { Create { name: String, zone: String, #[arg(short, long)] display: Option<String> }, List { #[arg(short, long)] zone: Option<String> }, Delete { name: String, zone: String } }
+pub enum GroupAction {
+    Create {
+        name: String,
+        zone: String,
+        #[arg(short, long)]
+        display: Option<String>,
+    },
+    List {
+        #[arg(short, long)]
+        zone: Option<String>,
+    },
+    Delete {
+        name: String,
+        zone: String,
+    },
+}
 
-struct Entry { domain: String, ip: String, comment: Option<String>, zone_name: String, group_name: String, created_at: String }
-struct Profile { id: i64, name: String, #[allow(dead_code)] is_active: bool }
+struct Entry {
+    domain: String,
+    ip: String,
+    comment: Option<String>,
+    zone_name: String,
+    group_name: String,
+    created_at: String,
+}
+struct Profile {
+    id: i64,
+    name: String,
+    #[allow(dead_code)]
+    is_active: bool,
+}
 
 #[derive(Debug)]
 struct SystemState {
-    port_listeners: HashMap<u16, String>, services: Vec<String>, #[allow(dead_code)] resolv_conf: String,
-    upstream_dns: String, upstream_port: u16, dnsdist_snippet: Option<String>, resolved_conf: Option<String>, warnings: Vec<String>,
+    port_listeners: HashMap<u16, String>,
+    services: Vec<String>,
+    #[allow(dead_code)]
+    resolv_conf: String,
+    upstream_dns: String,
+    upstream_port: u16,
+    dnsdist_snippet: Option<String>,
+    resolved_conf: Option<String>,
+    warnings: Vec<String>,
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -272,14 +426,44 @@ fn execute(cli: Cli, tel: &telemetry::Telemetry) -> Result<String, String> {
     } else {
         collect_tool_stats()
     };
-    tel.send_command_event(cmd_name, &stats.iter().map(|(k, v)| (*k, v.as_str())).collect::<Vec<_>>());
+    tel.send_command_event(
+        cmd_name,
+        &stats
+            .iter()
+            .map(|(k, v)| (*k, v.as_str()))
+            .collect::<Vec<_>>(),
+    );
 
     match cli.command {
-        Commands::Add { domain, ip, zone, group, comment } => add_entry(&domain, &ip, zone.as_deref(), group.as_deref(), comment.as_deref()),
+        Commands::Add {
+            domain,
+            ip,
+            zone,
+            group,
+            comment,
+        } => add_entry(
+            &domain,
+            &ip,
+            zone.as_deref(),
+            group.as_deref(),
+            comment.as_deref(),
+        ),
         Commands::Remove { domain } => remove_entry(&domain),
-        Commands::Move { domain, zone, group } => move_entry(&domain, zone.as_deref(), group.as_deref()),
-        Commands::Copy { domain, zone, group } => copy_entry(&domain, zone.as_deref(), group.as_deref()),
-        Commands::Edit { domain, ip, comment } => edit_entry(&domain, ip.as_deref(), comment.as_deref()),
+        Commands::Move {
+            domain,
+            zone,
+            group,
+        } => move_entry(&domain, zone.as_deref(), group.as_deref()),
+        Commands::Copy {
+            domain,
+            zone,
+            group,
+        } => copy_entry(&domain, zone.as_deref(), group.as_deref()),
+        Commands::Edit {
+            domain,
+            ip,
+            comment,
+        } => edit_entry(&domain, ip.as_deref(), comment.as_deref()),
         Commands::List => list_entries(),
         Commands::Profile { action } => handle_profile(action),
         Commands::Zone { action } => handle_zone(action),
@@ -288,7 +472,11 @@ fn execute(cli: Cli, tel: &telemetry::Telemetry) -> Result<String, String> {
         Commands::Reset => cmd_reset(),
         Commands::Status => cmd_status(),
         Commands::Apply => cmd_apply(),
-        Commands::Logs { follow, errors, lines } => cmd_logs(follow, errors, lines),
+        Commands::Logs {
+            follow,
+            errors,
+            lines,
+        } => cmd_logs(follow, errors, lines),
         Commands::Detect => cmd_detect(),
         Commands::Check { domain } => cmd_check(&domain),
         Commands::Telemetry { action } => handle_telemetry(action, tel),
@@ -299,18 +487,19 @@ fn execute(cli: Cli, tel: &telemetry::Telemetry) -> Result<String, String> {
 //  DATABASE
 // ═══════════════════════════════════════════════════════════
 
-fn db_path() -> PathBuf { data_dir().join("local-dns.db") }
+fn db_path() -> PathBuf {
+    data_dir().join("local-dns.db")
+}
 
 fn open_db_readonly() -> Result<Connection, String> {
-    Connection::open_with_flags(
-        db_path(),
-        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
-    ).map_err(|e| format!("Cannot open database: {e}"))
+    Connection::open_with_flags(db_path(), rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+        .map_err(|e| format!("Cannot open database: {e}"))
 }
 
 fn open_db() -> Result<Connection, String> {
     let conn = Connection::open(db_path()).map_err(|e| format!("Cannot open database: {e}"))?;
-    conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;").map_err(|e| format!("{e}"))?;
+    conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;")
+        .map_err(|e| format!("{e}"))?;
     Ok(conn)
 }
 
@@ -345,15 +534,27 @@ fn init_db() -> Result<Connection, String> {
         CREATE INDEX IF NOT EXISTS idx_zones_profile ON zones(profile_id);
         CREATE INDEX IF NOT EXISTS idx_groups_zone ON groups(zone_id);
         CREATE INDEX IF NOT EXISTS idx_entries_group ON entries(group_id);",
-    ).map_err(|e| format!("Cannot create schema: {e}"))?;
+    )
+    .map_err(|e| format!("Cannot create schema: {e}"))?;
     Ok(conn)
 }
 
 fn active_profile(conn: &Connection) -> Result<Profile, String> {
-    conn.query_row("SELECT id, name, is_active FROM profiles WHERE is_active = 1 LIMIT 1", [],
-        |row| Ok(Profile { id: row.get(0)?, name: row.get(1)?, is_active: row.get::<_, i32>(2)? != 0 }),
-    ).map_err(|e| match e {
-        rusqlite::Error::QueryReturnedNoRows => "Not initialized. Run `local-dns init` first.".into(),
+    conn.query_row(
+        "SELECT id, name, is_active FROM profiles WHERE is_active = 1 LIMIT 1",
+        [],
+        |row| {
+            Ok(Profile {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                is_active: row.get::<_, i32>(2)? != 0,
+            })
+        },
+    )
+    .map_err(|e| match e {
+        rusqlite::Error::QueryReturnedNoRows => {
+            "Not initialized. Run `local-dns init` first.".into()
+        }
         _ => format!("Database error: {e}"),
     })
 }
@@ -361,51 +562,112 @@ fn active_profile(conn: &Connection) -> Result<Profile, String> {
 fn ensure_defaults(conn: &Connection) -> Result<(i64, i64), String> {
     let p = active_profile(conn)?;
     conn.execute("INSERT OR IGNORE INTO zones (profile_id, name, display_name) VALUES (?1, 'global', 'Global')", params![p.id]).ok();
-    let zid: i64 = conn.query_row("SELECT id FROM zones WHERE profile_id = ?1 AND name = 'global'", params![p.id], |row| row.get(0)).unwrap();
-    conn.execute("INSERT OR IGNORE INTO groups (zone_id, name, display_name) VALUES (?1, 'main', 'Main')", params![zid]).ok();
-    let gid: i64 = conn.query_row("SELECT id FROM groups WHERE zone_id = ?1 AND name = 'main'", params![zid], |row| row.get(0)).unwrap();
+    let zid: i64 = conn
+        .query_row(
+            "SELECT id FROM zones WHERE profile_id = ?1 AND name = 'global'",
+            params![p.id],
+            |row| row.get(0),
+        )
+        .unwrap();
+    conn.execute(
+        "INSERT OR IGNORE INTO groups (zone_id, name, display_name) VALUES (?1, 'main', 'Main')",
+        params![zid],
+    )
+    .ok();
+    let gid: i64 = conn
+        .query_row(
+            "SELECT id FROM groups WHERE zone_id = ?1 AND name = 'main'",
+            params![zid],
+            |row| row.get(0),
+        )
+        .unwrap();
     Ok((zid, gid))
 }
 
 fn resolve_zone(conn: &Connection, pid: i64, name: &str) -> Result<i64, String> {
-    conn.query_row("SELECT id FROM zones WHERE profile_id = ?1 AND name = ?2", params![pid, name], |row| row.get(0))
-        .map_err(|_| format!("Zone '{name}' not found"))
+    conn.query_row(
+        "SELECT id FROM zones WHERE profile_id = ?1 AND name = ?2",
+        params![pid, name],
+        |row| row.get(0),
+    )
+    .map_err(|_| format!("Zone '{name}' not found"))
 }
 
 fn resolve_group(conn: &Connection, zid: i64, name: &str) -> Result<i64, String> {
-    conn.query_row("SELECT id FROM groups WHERE zone_id = ?1 AND name = ?2", params![zid, name], |row| row.get(0))
-        .map_err(|_| format!("Group '{name}' not found"))
+    conn.query_row(
+        "SELECT id FROM groups WHERE zone_id = ?1 AND name = ?2",
+        params![zid, name],
+        |row| row.get(0),
+    )
+    .map_err(|_| format!("Group '{name}' not found"))
 }
 
 fn profile_names(conn: &Connection) -> Result<Vec<String>, String> {
-    let mut stmt = conn.prepare("SELECT name FROM profiles ORDER BY name").map_err(|e| format!("{e}"))?;
-    let r: Vec<String> = stmt.query_map([], |row| row.get(0)).map_err(|e| format!("{e}"))?.collect::<Result<_, _>>().map_err(|e| format!("{e}"))?;
+    let mut stmt = conn
+        .prepare("SELECT name FROM profiles ORDER BY name")
+        .map_err(|e| format!("{e}"))?;
+    let r: Vec<String> = stmt
+        .query_map([], |row| row.get(0))
+        .map_err(|e| format!("{e}"))?
+        .collect::<Result<_, _>>()
+        .map_err(|e| format!("{e}"))?;
     Ok(r)
 }
 
 fn zone_list(conn: &Connection, pid: i64) -> Result<Vec<(String, Option<String>)>, String> {
-    let mut stmt = conn.prepare("SELECT name, display_name FROM zones WHERE profile_id = ?1 ORDER BY sort_order, name").map_err(|e| format!("{e}"))?;
-    let r = stmt.query_map(params![pid], |row| Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?)))
-        .map_err(|e| format!("{e}"))?.collect::<Result<Vec<_>, _>>().map_err(|e| format!("{e}"))?;
+    let mut stmt = conn
+        .prepare(
+            "SELECT name, display_name FROM zones WHERE profile_id = ?1 ORDER BY sort_order, name",
+        )
+        .map_err(|e| format!("{e}"))?;
+    let r = stmt
+        .query_map(params![pid], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
+        })
+        .map_err(|e| format!("{e}"))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| format!("{e}"))?;
     Ok(r)
 }
 
 fn group_list(conn: &Connection, zid: i64) -> Result<Vec<(String, Option<String>)>, String> {
-    let mut stmt = conn.prepare("SELECT name, display_name FROM groups WHERE zone_id = ?1 ORDER BY sort_order, name").map_err(|e| format!("{e}"))?;
-    let r = stmt.query_map(params![zid], |row| Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?)))
-        .map_err(|e| format!("{e}"))?.collect::<Result<Vec<_>, _>>().map_err(|e| format!("{e}"))?;
+    let mut stmt = conn
+        .prepare(
+            "SELECT name, display_name FROM groups WHERE zone_id = ?1 ORDER BY sort_order, name",
+        )
+        .map_err(|e| format!("{e}"))?;
+    let r = stmt
+        .query_map(params![zid], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
+        })
+        .map_err(|e| format!("{e}"))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| format!("{e}"))?;
     Ok(r)
 }
 
 fn all_entries(conn: &Connection, pid: i64) -> Result<Vec<Entry>, String> {
-    let mut stmt = conn.prepare(
-        "SELECT e.domain, e.ip, e.comment, z.name, g.name, e.created_at FROM entries e
+    let mut stmt = conn
+        .prepare(
+            "SELECT e.domain, e.ip, e.comment, z.name, g.name, e.created_at FROM entries e
          JOIN groups g ON e.group_id = g.id JOIN zones z ON g.zone_id = z.id
-         WHERE z.profile_id = ?1 ORDER BY z.sort_order, z.name, g.sort_order, g.name, e.sort_key"
-    ).map_err(|e| format!("{e}"))?;
-    let r = stmt.query_map(params![pid], |row| Ok(Entry {
-        domain: row.get(0)?, ip: row.get(1)?, comment: row.get(2)?, zone_name: row.get(3)?, group_name: row.get(4)?, created_at: row.get(5)?
-    })).map_err(|e| format!("{e}"))?.collect::<Result<Vec<_>, _>>().map_err(|e| format!("{e}"))?;
+         WHERE z.profile_id = ?1 ORDER BY z.sort_order, z.name, g.sort_order, g.name, e.sort_key",
+        )
+        .map_err(|e| format!("{e}"))?;
+    let r = stmt
+        .query_map(params![pid], |row| {
+            Ok(Entry {
+                domain: row.get(0)?,
+                ip: row.get(1)?,
+                comment: row.get(2)?,
+                zone_name: row.get(3)?,
+                group_name: row.get(4)?,
+                created_at: row.get(5)?,
+            })
+        })
+        .map_err(|e| format!("{e}"))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| format!("{e}"))?;
     Ok(r)
 }
 
@@ -420,29 +682,45 @@ fn cmd_detect() -> Result<String, String> {
 
 fn detect_system() -> Result<SystemState, String> {
     let raw_ports = detect_dns_tools();
-    let port_listeners: HashMap<u16, String> = raw_ports.into_iter().map(|(p, n)| (p, n)).collect();
+    let port_listeners: HashMap<u16, String> = raw_ports.into_iter().collect();
     let services = detect_services();
-    let resolv_conf = if cfg!(unix) { fs::read_to_string("/etc/resolv.conf").unwrap_or_default() } else { String::new() };
+    let resolv_conf = if cfg!(unix) {
+        fs::read_to_string("/etc/resolv.conf").unwrap_or_default()
+    } else {
+        String::new()
+    };
     let upstream = detect_upstream_candidates(&services, &port_listeners);
 
     let mut state = SystemState {
-        port_listeners, services, resolv_conf,
-        upstream_dns: upstream.0, upstream_port: upstream.1,
-        dnsdist_snippet: None, resolved_conf: None, warnings: Vec::new(),
+        port_listeners,
+        services,
+        resolv_conf,
+        upstream_dns: upstream.0,
+        upstream_port: upstream.1,
+        dnsdist_snippet: None,
+        resolved_conf: None,
+        warnings: Vec::new(),
     };
 
     if state.port_listeners.contains_key(&5354) {
-        state.warnings.push(format!("Port 5354 is in use by '{}'.", state.port_listeners.get(&5354).unwrap()));
+        state.warnings.push(format!(
+            "Port 5354 is in use by '{}'.",
+            state.port_listeners.get(&5354).unwrap()
+        ));
     }
-    if state.services.iter().any(|s| s == "dnsdist") { state.dnsdist_snippet = Some(dnsdist_routing_snippet()); }
-    if state.services.iter().any(|s| s == "systemd-resolved") { state.resolved_conf = Some(resolved_routing_snippet()); }
+    if state.services.iter().any(|s| s == "dnsdist") {
+        state.dnsdist_snippet = Some(dnsdist_routing_snippet());
+    }
+    if state.services.iter().any(|s| s == "systemd-resolved") {
+        state.resolved_conf = Some(resolved_routing_snippet());
+    }
 
     Ok(state)
 }
 
 fn detect_upstream_candidates(services: &[String], ports: &HashMap<u16, String>) -> (String, u16) {
-    if services.iter().any(|s| s.contains("dnscrypt")) {
-        if ports.contains_key(&5053) { return ("127.0.0.1".into(), 5053); }
+    if services.iter().any(|s| s.contains("dnscrypt")) && ports.contains_key(&5053) {
+        return ("127.0.0.1".into(), 5053);
     }
     if services.iter().any(|s| s.contains("dnsdist")) && ports.contains_key(&53) {
         return ("127.0.0.1".into(), 53);
@@ -456,7 +734,8 @@ local localZones = newSuffixMatchNode()
 localZones:add("test"); localZones:add("dev"); localZones:add("local"); localZones:add("localhost")
 addAction(SuffixMatchNodeRule(localZones), PoolAction("local"))
 newServer({address="127.0.0.1:5354", pool="local"})
--- ===================================================="#.into()
+-- ===================================================="#
+        .into()
 }
 
 fn resolved_routing_snippet() -> String {
@@ -473,7 +752,11 @@ Domains=~test ~dev ~local ~localhost ~invalid
 "#;
     let path = conf_dir.join("local-dns.conf");
     fs::write(&path, conf).map_err(|e| format!("Cannot write {path:?}: {e}"))?;
-    println!("  {} Created {}", "✓".green(), path.display().to_string().cyan());
+    println!(
+        "  {} Created {}",
+        "✓".green(),
+        path.display().to_string().cyan()
+    );
 
     let restart = Command::new("systemctl")
         .args(["try-reload-or-restart", "systemd-resolved"])
@@ -490,9 +773,18 @@ Domains=~test ~dev ~local ~localhost ~invalid
         .args(["dns", "lo", "127.0.0.1:5354"])
         .status();
     let domain_set = Command::new("resolvectl")
-        .args(["domain", "lo", "~test", "~dev", "~local", "~localhost", "~invalid"])
+        .args([
+            "domain",
+            "lo",
+            "~test",
+            "~dev",
+            "~local",
+            "~localhost",
+            "~invalid",
+        ])
         .status();
-    if dns_set.ok().map_or(false, |s| s.success()) && domain_set.ok().map_or(false, |s| s.success()) {
+    if dns_set.ok().is_some_and(|s| s.success()) && domain_set.ok().is_some_and(|s| s.success())
+    {
         println!("  {} Applied resolvectl routing", "✓".green());
     }
 
@@ -501,25 +793,56 @@ Domains=~test ~dev ~local ~localhost ~invalid
 
 fn format_detect(state: &SystemState) -> String {
     let mut out = String::new();
-    out.push_str(&format!("{} {}\n\n", "Platform:".cyan().bold(), std::env::consts::OS));
+    out.push_str(&format!(
+        "{} {}\n\n",
+        "Platform:".cyan().bold(),
+        std::env::consts::OS
+    ));
     out.push_str(&format!("{}\n", "Port Usage:".bold()));
-    if state.port_listeners.is_empty() { out.push_str(&format!("  {}\n", "(none detected)".yellow())); } else {
-        let mut s: Vec<_> = state.port_listeners.iter().collect(); s.sort_by_key(|(p, _)| **p);
+    if state.port_listeners.is_empty() {
+        out.push_str(&format!("  {}\n", "(none detected)".yellow()));
+    } else {
+        let mut s: Vec<_> = state.port_listeners.iter().collect();
+        s.sort_by_key(|(p, _)| **p);
         for (p, n) in &s {
-            let marker = if **p == 5354 { " ← local-dns".green().to_string() } else { String::new() };
-            out.push_str(&format!("  Port {:<5} {}{}\n", p.to_string().yellow(), n, marker));
+            let marker = if **p == 5354 {
+                " ← local-dns".green().to_string()
+            } else {
+                String::new()
+            };
+            out.push_str(&format!(
+                "  Port {:<5} {}{}\n",
+                p.to_string().yellow(),
+                n,
+                marker
+            ));
         }
     }
     out.push_str(&format!("\n{}\n", "DNS Services:".bold()));
-    if state.services.is_empty() { out.push_str(&format!("  {}\n", "(none)".yellow())); } else {
-        for s in &state.services { out.push_str(&format!("  {}\n", format!("✓ {s}").green())); }
+    if state.services.is_empty() {
+        out.push_str(&format!("  {}\n", "(none)".yellow()));
+    } else {
+        for s in &state.services {
+            out.push_str(&format!("  {}\n", format!("✓ {s}").green()));
+        }
     }
-    out.push_str(&format!("\n{} {}:{}\n", "Upstream:".bold(), state.upstream_dns.cyan(), state.upstream_port.to_string().cyan()));
-    let dnsmasq_status = if supports_dnsmasq() { "✓ available".green().to_string() } else { "✗ not found".red().to_string() };
+    out.push_str(&format!(
+        "\n{} {}:{}\n",
+        "Upstream:".bold(),
+        state.upstream_dns.cyan(),
+        state.upstream_port.to_string().cyan()
+    ));
+    let dnsmasq_status = if supports_dnsmasq() {
+        "✓ available".green().to_string()
+    } else {
+        "✗ not found".red().to_string()
+    };
     out.push_str(&format!("dnsmasq: {dnsmasq_status}\n"));
     if !state.warnings.is_empty() {
         out.push_str(&format!("\n{}\n", "Warnings:".yellow().bold()));
-        for w in &state.warnings { out.push_str(&format!("  {}\n", format!("⚠ {w}").yellow())); }
+        for w in &state.warnings {
+            out.push_str(&format!("  {}\n", format!("⚠ {w}").yellow()));
+        }
     }
     out
 }
@@ -534,7 +857,13 @@ fn cmd_init() -> Result<String, String> {
     println!("{}", format_detect(&state));
 
     if !supports_dnsmasq() {
-        let hint = if cfg!(target_os = "macos") { "Install: brew install dnsmasq" } else if cfg!(target_os = "windows") { "Install WSL or use: winget install dnsmasq" } else { "Install: sudo apt install dnsmasq / sudo dnf install dnsmasq" };
+        let hint = if cfg!(target_os = "macos") {
+            "Install: brew install dnsmasq"
+        } else if cfg!(target_os = "windows") {
+            "Install WSL or use: winget install dnsmasq"
+        } else {
+            "Install: sudo apt install dnsmasq / sudo dnf install dnsmasq"
+        };
         return Err(format!("dnsmasq not found. {hint}"));
     }
 
@@ -543,41 +872,91 @@ fn cmd_init() -> Result<String, String> {
     ensure_run_dir()?;
 
     let conn = init_db()?;
-    conn.execute("INSERT OR IGNORE INTO profiles (name, is_active) VALUES ('default', 1)", []).ok();
+    conn.execute(
+        "INSERT OR IGNORE INTO profiles (name, is_active) VALUES ('default', 1)",
+        [],
+    )
+    .ok();
     ensure_defaults(&conn)?;
 
     write_dnsmasq_conf(&state)?;
     install_service()?;
 
-    println!("\n{}", "╔══════════════════════════════════════════╗".green());
-    println!("{}", "║     local-dns — Setup Complete           ║".green().bold());
-    println!("{}\n", "╚══════════════════════════════════════════╝".green());
+    println!(
+        "\n{}",
+        "╔══════════════════════════════════════════╗".green()
+    );
+    println!(
+        "{}",
+        "║     local-dns — Setup Complete           ║"
+            .green()
+            .bold()
+    );
+    println!(
+        "{}\n",
+        "╚══════════════════════════════════════════╝".green()
+    );
     println!("  {} {}/", "Data:".bold(), d.display().to_string().cyan());
-    println!("  {} {}", "Database:".bold(), db_path().display().to_string().cyan());
-    println!("  {} {}/dnsmasq.conf", "Config:".bold(), d.display().to_string().cyan());
-    println!("  {} {}", "Logs:".bold(), log_path().display().to_string().cyan());
-    println!("  {} {}:{}\n", "Upstream:".bold(), state.upstream_dns.cyan(), state.upstream_port.to_string().cyan());
+    println!(
+        "  {} {}",
+        "Database:".bold(),
+        db_path().display().to_string().cyan()
+    );
+    println!(
+        "  {} {}/dnsmasq.conf",
+        "Config:".bold(),
+        d.display().to_string().cyan()
+    );
+    println!(
+        "  {} {}",
+        "Logs:".bold(),
+        log_path().display().to_string().cyan()
+    );
+    println!(
+        "  {} {}:{}\n",
+        "Upstream:".bold(),
+        state.upstream_dns.cyan(),
+        state.upstream_port.to_string().cyan()
+    );
 
     if let Some(ref s) = state.dnsdist_snippet {
         println!("{}", "dnsdist detected!".yellow().bold());
-        println!("{}\n\n{s}\n\n{}\n", "Add to /etc/dnsdist/dnsdist.conf:".yellow(), "Then: sudo systemctl restart dnsdist".yellow());
+        println!(
+            "{}\n\n{s}\n\n{}\n",
+            "Add to /etc/dnsdist/dnsdist.conf:".yellow(),
+            "Then: sudo systemctl restart dnsdist".yellow()
+        );
     }
     if let Some(ref c) = state.resolved_conf {
-        println!("{}", "systemd-resolved detected! Configuring routing...".yellow().bold());
+        println!(
+            "{}",
+            "systemd-resolved detected! Configuring routing..."
+                .yellow()
+                .bold()
+        );
         if let Err(e) = configure_resolved_routing() {
             eprintln!("  {} {e}", "⚠".yellow());
             println!("\n  To configure manually:\n  {c}\n");
         }
     } else {
-        println!("  {} To route .test/.dev domains to dnsmasq, set your system DNS to 127.0.0.1:5354", "ℹ".yellow());
+        println!(
+            "  {} To route .test/.dev domains to dnsmasq, set your system DNS to 127.0.0.1:5354",
+            "ℹ".yellow()
+        );
     }
 
-    println!("{}", "────────────────────────────────────────────".dimmed());
+    println!(
+        "{}",
+        "────────────────────────────────────────────".dimmed()
+    );
     println!("{}", "Next:".bold());
-    println!("{}", "────────────────────────────────────────────".dimmed());
+    println!(
+        "{}",
+        "────────────────────────────────────────────".dimmed()
+    );
     println!("  {}  {}", "1.".green().bold(), start_service_hint());
-    println!("  {}  {}", "2.".green().bold(), "local-dns add myapp.test 127.0.0.1");
-    println!("  {}  {}\n", "3.".green().bold(), "ping myapp.test");
+    println!("  {}  local-dns add myapp.test 127.0.0.1", "2.".green().bold());
+    println!("  {}  ping myapp.test\n", "3.".green().bold());
     Ok(String::new())
 }
 
@@ -591,9 +970,17 @@ fn cmd_reset() -> Result<String, String> {
 }
 
 fn start_service_hint() -> String {
-    if supports_systemd() { format!("sudo systemctl enable --now {DNSMASQ_SERVICE}") }
-    else if supports_launchctl() { "brew services start dnsmasq && launchctl load ...".into() }
-    else { format!("Start dnsmasq manually: {} -k --conf-file={}/dnsmasq.conf", dnsmasq_binary(), data_dir().display()) }
+    if supports_systemd() {
+        format!("sudo systemctl enable --now {DNSMASQ_SERVICE}")
+    } else if supports_launchctl() {
+        "brew services start dnsmasq && launchctl load ...".into()
+    } else {
+        format!(
+            "Start dnsmasq manually: {} -k --conf-file={}/dnsmasq.conf",
+            dnsmasq_binary(),
+            data_dir().display()
+        )
+    }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -603,31 +990,86 @@ fn start_service_hint() -> String {
 fn handle_zone(action: ZoneAction) -> Result<String, String> {
     match action {
         ZoneAction::Create { name, display } => {
-            let conn = open_db()?; let p = active_profile(&conn)?;
-            conn.execute("INSERT INTO zones (profile_id, name, display_name) VALUES (?1, ?2, ?3)", params![p.id, name, display])
-                .map_err(|e| if e.to_string().contains("UNIQUE") { format!("Zone '{name}' exists") } else { format!("{e}") })?;
+            let conn = open_db()?;
+            let p = active_profile(&conn)?;
+            conn.execute(
+                "INSERT INTO zones (profile_id, name, display_name) VALUES (?1, ?2, ?3)",
+                params![p.id, name, display],
+            )
+            .map_err(|e| {
+                if e.to_string().contains("UNIQUE") {
+                    format!("Zone '{name}' exists")
+                } else {
+                    format!("{e}")
+                }
+            })?;
             Ok(format!("{} Zone '{name}' created", "✓".green()))
         }
         ZoneAction::List => {
-            let conn = open_db_readonly()?; let p = active_profile(&conn)?;
-            let z = zone_list(&conn, p.id)?; if z.is_empty() { return Ok(format!("{}", "No zones.".yellow())); }
-            Ok(format!("{}:\n{}", "Zones".bold(), z.iter().map(|(n, d)| format!("  {}{}", n, d.as_deref().map(|s| format!(" ({})", s.cyan())).unwrap_or_default())).collect::<Vec<_>>().join("\n")))
+            let conn = open_db_readonly()?;
+            let p = active_profile(&conn)?;
+            let z = zone_list(&conn, p.id)?;
+            if z.is_empty() {
+                return Ok(format!("{}", "No zones.".yellow()));
+            }
+            Ok(format!(
+                "{}:\n{}",
+                "Zones".bold(),
+                z.iter()
+                    .map(|(n, d)| format!(
+                        "  {}{}",
+                        n,
+                        d.as_deref()
+                            .map(|s| format!(" ({})", s.cyan()))
+                            .unwrap_or_default()
+                    ))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            ))
         }
         ZoneAction::Show { name } => {
-            let conn = open_db_readonly()?; let p = active_profile(&conn)?;
+            let conn = open_db_readonly()?;
+            let p = active_profile(&conn)?;
             let zid = resolve_zone(&conn, p.id, &name)?;
-            let dsp: Option<String> = conn.query_row("SELECT display_name FROM zones WHERE id = ?1", params![zid], |row| row.get(0)).ok().flatten();
+            let dsp: Option<String> = conn
+                .query_row(
+                    "SELECT display_name FROM zones WHERE id = ?1",
+                    params![zid],
+                    |row| row.get(0),
+                )
+                .ok()
+                .flatten();
             let grps = group_list(&conn, zid)?;
-            let mut out = format!("{} {}{}\n{}:\n",
-                "Zone:".yellow().bold(), name, dsp.as_deref().map(|s| format!(" ({})", s.cyan())).unwrap_or_default(),
-                "Groups".bold());
-            if grps.is_empty() { out.push_str(&format!("  {}\n", "(empty)".yellow())); } else { for (g, d) in &grps { out.push_str(&format!("  {}{}\n", g.green(), d.as_deref().map(|s| format!(" ({})", s.cyan())).unwrap_or_default())); } }
+            let mut out = format!(
+                "{} {}{}\n{}:\n",
+                "Zone:".yellow().bold(),
+                name,
+                dsp.as_deref()
+                    .map(|s| format!(" ({})", s.cyan()))
+                    .unwrap_or_default(),
+                "Groups".bold()
+            );
+            if grps.is_empty() {
+                out.push_str(&format!("  {}\n", "(empty)".yellow()));
+            } else {
+                for (g, d) in &grps {
+                    out.push_str(&format!(
+                        "  {}{}\n",
+                        g.green(),
+                        d.as_deref()
+                            .map(|s| format!(" ({})", s.cyan()))
+                            .unwrap_or_default()
+                    ));
+                }
+            }
             Ok(out.trim().into())
         }
         ZoneAction::Delete { name } => {
-            let conn = open_db()?; let p = active_profile(&conn)?;
+            let conn = open_db()?;
+            let p = active_profile(&conn)?;
             let zid = resolve_zone(&conn, p.id, &name)?;
-            conn.execute("DELETE FROM zones WHERE id = ?1", params![zid]).ok();
+            conn.execute("DELETE FROM zones WHERE id = ?1", params![zid])
+                .ok();
             Ok(format!("{} Zone '{name}' deleted", "✓".green()))
         }
     }
@@ -635,31 +1077,81 @@ fn handle_zone(action: ZoneAction) -> Result<String, String> {
 
 fn handle_group(action: GroupAction) -> Result<String, String> {
     match action {
-        GroupAction::Create { name, zone, display } => {
-            let conn = open_db()?; let p = active_profile(&conn)?;
+        GroupAction::Create {
+            name,
+            zone,
+            display,
+        } => {
+            let conn = open_db()?;
+            let p = active_profile(&conn)?;
             let zid = resolve_zone(&conn, p.id, &zone)?;
-            conn.execute("INSERT INTO groups (zone_id, name, display_name) VALUES (?1, ?2, ?3)", params![zid, name, display])
-                .map_err(|e| if e.to_string().contains("UNIQUE") { format!("Group '{name}' exists in '{zone}'") } else { format!("{e}") })?;
-            Ok(format!("{} Group '{name}' created in '{zone}'", "✓".green()))
+            conn.execute(
+                "INSERT INTO groups (zone_id, name, display_name) VALUES (?1, ?2, ?3)",
+                params![zid, name, display],
+            )
+            .map_err(|e| {
+                if e.to_string().contains("UNIQUE") {
+                    format!("Group '{name}' exists in '{zone}'")
+                } else {
+                    format!("{e}")
+                }
+            })?;
+            Ok(format!(
+                "{} Group '{name}' created in '{zone}'",
+                "✓".green()
+            ))
         }
         GroupAction::List { zone } => {
-            let conn = open_db_readonly()?; let p = active_profile(&conn)?;
+            let conn = open_db_readonly()?;
+            let p = active_profile(&conn)?;
             if let Some(z) = zone {
                 let zid = resolve_zone(&conn, p.id, &z)?;
                 let grps = group_list(&conn, zid)?;
-                if grps.is_empty() { return Ok(format!("{} No groups in '{z}'.", "⚠".yellow())); }
-                Ok(format!("{} Groups in '{z}':\n{}", "Groups".bold(), grps.iter().map(|(n, d)| format!("  {}{}", n.green(), d.as_deref().map(|s| format!(" ({})", s.cyan())).unwrap_or_default())).collect::<Vec<_>>().join("\n")))
+                if grps.is_empty() {
+                    return Ok(format!("{} No groups in '{z}'.", "⚠".yellow()));
+                }
+                Ok(format!(
+                    "{} Groups in '{z}':\n{}",
+                    "Groups".bold(),
+                    grps.iter()
+                        .map(|(n, d)| format!(
+                            "  {}{}",
+                            n.green(),
+                            d.as_deref()
+                                .map(|s| format!(" ({})", s.cyan()))
+                                .unwrap_or_default()
+                        ))
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                ))
             } else {
-                let zs = zone_list(&conn, p.id)?; let mut out = format!("{}:\n", "Groups".bold());
-                for (zn, _) in &zs { if let Ok(zid) = resolve_zone(&conn, p.id, zn) { if let Ok(gs) = group_list(&conn, zid) { for (gn, _) in &gs { out.push_str(&format!("  {}/{}\n", zn.yellow(), gn.green())); } } } }
+                let zs = zone_list(&conn, p.id)?;
+                let mut out = format!("{}:\n", "Groups".bold());
+                for (zn, _) in &zs {
+                    if let Ok(zid) = resolve_zone(&conn, p.id, zn) {
+                        if let Ok(gs) = group_list(&conn, zid) {
+                            for (gn, _) in &gs {
+                                out.push_str(&format!("  {}/{}\n", zn.yellow(), gn.green()));
+                            }
+                        }
+                    }
+                }
                 Ok(out.trim().into())
             }
         }
         GroupAction::Delete { name, zone } => {
-            let conn = open_db()?; let p = active_profile(&conn)?;
+            let conn = open_db()?;
+            let p = active_profile(&conn)?;
             let zid = resolve_zone(&conn, p.id, &zone)?;
-            conn.execute("DELETE FROM groups WHERE zone_id = ?1 AND name = ?2", params![zid, name]).ok();
-            Ok(format!("{} Group '{name}' deleted from '{zone}'", "✓".green()))
+            conn.execute(
+                "DELETE FROM groups WHERE zone_id = ?1 AND name = ?2",
+                params![zid, name],
+            )
+            .ok();
+            Ok(format!(
+                "{} Group '{name}' deleted from '{zone}'",
+                "✓".green()
+            ))
         }
     }
 }
@@ -668,103 +1160,218 @@ fn handle_group(action: GroupAction) -> Result<String, String> {
 //  ENTRY COMMANDS
 // ═══════════════════════════════════════════════════════════
 
-fn add_entry(domain: &str, ip: &str, zone: Option<&str>, group: Option<&str>, comment: Option<&str>) -> Result<String, String> {
-    let conn = open_db()?; let p = active_profile(&conn)?; let (_, def_gid) = ensure_defaults(&conn)?;
+fn add_entry(
+    domain: &str,
+    ip: &str,
+    zone: Option<&str>,
+    group: Option<&str>,
+    comment: Option<&str>,
+) -> Result<String, String> {
+    let conn = open_db()?;
+    let p = active_profile(&conn)?;
+    let (_, def_gid) = ensure_defaults(&conn)?;
     let zn = zone.unwrap_or("global");
     let gn = group.unwrap_or("main");
-    let zid = if zn == "global" { conn.query_row("SELECT id FROM zones WHERE profile_id = ?1 AND name = 'global'", params![p.id], |row| row.get(0)).unwrap() } else { resolve_zone(&conn, p.id, zn)? };
-    let gid = if gn == "main" && zn == "global" { def_gid } else {
+    let zid = if zn == "global" {
+        conn.query_row(
+            "SELECT id FROM zones WHERE profile_id = ?1 AND name = 'global'",
+            params![p.id],
+            |row| row.get(0),
+        )
+        .unwrap()
+    } else {
+        resolve_zone(&conn, p.id, zn)?
+    };
+    let gid = if gn == "main" && zn == "global" {
+        def_gid
+    } else {
         resolve_group(&conn, zid, gn).unwrap_or_else(|_| {
-            conn.execute("INSERT INTO groups (zone_id, name) VALUES (?1, ?2)", params![zid, gn]).map_err(|e| format!("Cannot create group '{gn}' in '{zn}': {e}")).ok();
+            conn.execute(
+                "INSERT INTO groups (zone_id, name) VALUES (?1, ?2)",
+                params![zid, gn],
+            )
+            .map_err(|e| format!("Cannot create group '{gn}' in '{zn}': {e}"))
+            .ok();
             conn.last_insert_rowid()
         })
     };
-    conn.execute("INSERT INTO entries (group_id, domain, ip, comment, sort_key) VALUES (?1, ?2, ?3, ?4, ?5)",
-        params![gid, domain, ip, comment, domain.trim_start_matches("*.")]).map_err(|e| {
-            if e.to_string().contains("UNIQUE") { format!("Entry '{domain}' exists") } else { format!("{e}") }
-        })?;
+    conn.execute(
+        "INSERT INTO entries (group_id, domain, ip, comment, sort_key) VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![gid, domain, ip, comment, domain.trim_start_matches("*.")],
+    )
+    .map_err(|e| {
+        if e.to_string().contains("UNIQUE") {
+            format!("Entry '{domain}' exists")
+        } else {
+            format!("{e}")
+        }
+    })?;
     cmd_apply()?;
-    let loc = if zn != "global" || gn != "main" { format!(" ({zn}/{gn})") } else { String::new() };
+    let loc = if zn != "global" || gn != "main" {
+        format!(" ({zn}/{gn})")
+    } else {
+        String::new()
+    };
     Ok(format!("{} Added {domain} → {ip}{loc}", "✓".green()))
 }
 
 fn remove_entry(domain: &str) -> Result<String, String> {
-    let conn = open_db()?; let p = active_profile(&conn)?;
+    let conn = open_db()?;
+    let p = active_profile(&conn)?;
     let d = conn.execute("DELETE FROM entries WHERE id IN (SELECT e.id FROM entries e JOIN groups g ON e.group_id = g.id JOIN zones z ON g.zone_id = z.id WHERE z.profile_id = ?1 AND e.domain = ?2)", params![p.id, domain])
         .map_err(|e| format!("{e}"))?;
-    if d == 0 { return Err(format!("Entry '{domain}' not found")); }
-    cmd_apply()?; Ok(format!("{} Removed {domain}", "✓".green()))
+    if d == 0 {
+        return Err(format!("Entry '{domain}' not found"));
+    }
+    cmd_apply()?;
+    Ok(format!("{} Removed {domain}", "✓".green()))
 }
 
 fn move_entry(domain: &str, zone: Option<&str>, group: Option<&str>) -> Result<String, String> {
-    let conn = open_db()?; let p = active_profile(&conn)?; let (_, def_gid) = ensure_defaults(&conn)?;
-    let zn = zone.unwrap_or("global"); let gn = group.unwrap_or("main");
-    let zid = if zn == "global" { conn.query_row("SELECT id FROM zones WHERE profile_id = ?1 AND name = 'global'", params![p.id], |row| row.get(0)).unwrap() } else { resolve_zone(&conn, p.id, zn)? };
-    let gid = if gn == "main" && zn == "global" { def_gid } else {
+    let conn = open_db()?;
+    let p = active_profile(&conn)?;
+    let (_, def_gid) = ensure_defaults(&conn)?;
+    let zn = zone.unwrap_or("global");
+    let gn = group.unwrap_or("main");
+    let zid = if zn == "global" {
+        conn.query_row(
+            "SELECT id FROM zones WHERE profile_id = ?1 AND name = 'global'",
+            params![p.id],
+            |row| row.get(0),
+        )
+        .unwrap()
+    } else {
+        resolve_zone(&conn, p.id, zn)?
+    };
+    let gid = if gn == "main" && zn == "global" {
+        def_gid
+    } else {
         resolve_group(&conn, zid, gn).unwrap_or_else(|_| {
-            conn.execute("INSERT INTO groups (zone_id, name) VALUES (?1, ?2)", params![zid, gn]).map_err(|e| format!("Cannot create group '{gn}' in '{zn}': {e}")).ok();
+            conn.execute(
+                "INSERT INTO groups (zone_id, name) VALUES (?1, ?2)",
+                params![zid, gn],
+            )
+            .map_err(|e| format!("Cannot create group '{gn}' in '{zn}': {e}"))
+            .ok();
             conn.last_insert_rowid()
         })
     };
 
-    let entry = conn.query_row(
-        "SELECT e.id, e.domain, e.ip, e.comment, e.sort_key, e.group_id FROM entries e
+    let entry = conn
+        .query_row(
+            "SELECT e.id, e.domain, e.ip, e.comment, e.sort_key, e.group_id FROM entries e
          JOIN groups g ON e.group_id = g.id JOIN zones z ON g.zone_id = z.id
          WHERE z.profile_id = ?1 AND e.domain = ?2",
-        params![p.id, domain],
-        |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?, row.get::<_, Option<String>>(3)?, row.get::<_, String>(4)?, row.get::<_, i64>(5)?)),
-    ).map_err(|_| format!("Entry '{domain}' not found"))?;
+            params![p.id, domain],
+            |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, Option<String>>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, i64>(5)?,
+                ))
+            },
+        )
+        .map_err(|_| format!("Entry '{domain}' not found"))?;
 
     let (eid, domain_name, ip, comment, sort_key, old_gid) = entry;
     if old_gid == gid {
         return Err(format!("Entry '{domain}' is already in '{zn}/{gn}'"));
     }
 
-    conn.execute("INSERT INTO entries (group_id, domain, ip, comment, sort_key) VALUES (?1, ?2, ?3, ?4, ?5)",
-        params![gid, domain_name, ip, comment, sort_key]).map_err(|e| {
-            if e.to_string().contains("UNIQUE") { format!("Entry '{domain}' already exists in '{zn}/{gn}'") } else { format!("{e}") }
-        })?;
-    conn.execute("DELETE FROM entries WHERE id = ?1", params![eid]).ok();
+    conn.execute(
+        "INSERT INTO entries (group_id, domain, ip, comment, sort_key) VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![gid, domain_name, ip, comment, sort_key],
+    )
+    .map_err(|e| {
+        if e.to_string().contains("UNIQUE") {
+            format!("Entry '{domain}' already exists in '{zn}/{gn}'")
+        } else {
+            format!("{e}")
+        }
+    })?;
+    conn.execute("DELETE FROM entries WHERE id = ?1", params![eid])
+        .ok();
     cmd_apply()?;
     Ok(format!("{} Moved {domain} → {zn}/{gn}", "✓".green()))
 }
 
 fn copy_entry(domain: &str, zone: Option<&str>, group: Option<&str>) -> Result<String, String> {
-    let conn = open_db()?; let p = active_profile(&conn)?; let (_, def_gid) = ensure_defaults(&conn)?;
-    let zn = zone.unwrap_or("global"); let gn = group.unwrap_or("main");
-    let zid = if zn == "global" { conn.query_row("SELECT id FROM zones WHERE profile_id = ?1 AND name = 'global'", params![p.id], |row| row.get(0)).unwrap() } else { resolve_zone(&conn, p.id, zn)? };
-    let gid = if gn == "main" && zn == "global" { def_gid } else {
+    let conn = open_db()?;
+    let p = active_profile(&conn)?;
+    let (_, def_gid) = ensure_defaults(&conn)?;
+    let zn = zone.unwrap_or("global");
+    let gn = group.unwrap_or("main");
+    let zid = if zn == "global" {
+        conn.query_row(
+            "SELECT id FROM zones WHERE profile_id = ?1 AND name = 'global'",
+            params![p.id],
+            |row| row.get(0),
+        )
+        .unwrap()
+    } else {
+        resolve_zone(&conn, p.id, zn)?
+    };
+    let gid = if gn == "main" && zn == "global" {
+        def_gid
+    } else {
         resolve_group(&conn, zid, gn).unwrap_or_else(|_| {
-            conn.execute("INSERT INTO groups (zone_id, name) VALUES (?1, ?2)", params![zid, gn]).map_err(|e| format!("Cannot create group '{gn}' in '{zn}': {e}")).ok();
+            conn.execute(
+                "INSERT INTO groups (zone_id, name) VALUES (?1, ?2)",
+                params![zid, gn],
+            )
+            .map_err(|e| format!("Cannot create group '{gn}' in '{zn}': {e}"))
+            .ok();
             conn.last_insert_rowid()
         })
     };
 
-    let entry = conn.query_row(
-        "SELECT e.domain, e.ip, e.comment, e.sort_key FROM entries e
+    let entry = conn
+        .query_row(
+            "SELECT e.domain, e.ip, e.comment, e.sort_key FROM entries e
          JOIN groups g ON e.group_id = g.id JOIN zones z ON g.zone_id = z.id
          WHERE z.profile_id = ?1 AND e.domain = ?2",
-        params![p.id, domain],
-        |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, Option<String>>(2)?, row.get::<_, String>(3)?)),
-    ).map_err(|_| format!("Entry '{domain}' not found"))?;
+            params![p.id, domain],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, Option<String>>(2)?,
+                    row.get::<_, String>(3)?,
+                ))
+            },
+        )
+        .map_err(|_| format!("Entry '{domain}' not found"))?;
 
     let (domain_name, ip, comment, sort_key) = entry;
-    conn.execute("INSERT INTO entries (group_id, domain, ip, comment, sort_key) VALUES (?1, ?2, ?3, ?4, ?5)",
-        params![gid, domain_name, ip, comment, sort_key]).map_err(|e| {
-            if e.to_string().contains("UNIQUE") { format!("Entry '{domain}' already exists in '{zn}/{gn}'") } else { format!("{e}") }
-        })?;
+    conn.execute(
+        "INSERT INTO entries (group_id, domain, ip, comment, sort_key) VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![gid, domain_name, ip, comment, sort_key],
+    )
+    .map_err(|e| {
+        if e.to_string().contains("UNIQUE") {
+            format!("Entry '{domain}' already exists in '{zn}/{gn}'")
+        } else {
+            format!("{e}")
+        }
+    })?;
     cmd_apply()?;
     Ok(format!("{} Copied {domain} → {zn}/{gn}", "✓".green()))
 }
 
 fn edit_entry(domain: &str, ip: Option<&str>, comment: Option<&str>) -> Result<String, String> {
-    let conn = open_db()?; let p = active_profile(&conn)?;
+    let conn = open_db()?;
+    let p = active_profile(&conn)?;
 
     let exists: bool = conn.query_row(
         "SELECT COUNT(*) FROM entries e JOIN groups g ON e.group_id = g.id JOIN zones z ON g.zone_id = z.id WHERE z.profile_id = ?1 AND e.domain = ?2",
         params![p.id, domain], |row| row.get::<_, i64>(0),
     ).unwrap_or(0) > 0;
-    if !exists { return Err(format!("Entry '{domain}' not found")); }
+    if !exists {
+        return Err(format!("Entry '{domain}' not found"));
+    }
 
     let mut changes = Vec::new();
     if let Some(new_ip) = ip {
@@ -778,33 +1385,73 @@ fn edit_entry(domain: &str, ip: Option<&str>, comment: Option<&str>) -> Result<S
         changes.push(format!("comment → '{new_comment}'"));
     }
 
-    if changes.is_empty() { return Err("Nothing to edit. Use --ip or --comment.".into()); }
+    if changes.is_empty() {
+        return Err("Nothing to edit. Use --ip or --comment.".into());
+    }
     cmd_apply()?;
-    Ok(format!("{} Edited {domain}: {}", "✓".green(), changes.join(", ")))
+    Ok(format!(
+        "{} Edited {domain}: {}",
+        "✓".green(),
+        changes.join(", ")
+    ))
 }
 
 fn list_entries() -> Result<String, String> {
-    let conn = open_db_readonly()?; let p = active_profile(&conn)?; let entries = all_entries(&conn, p.id)?;
+    let conn = open_db_readonly()?;
+    let p = active_profile(&conn)?;
+    let entries = all_entries(&conn, p.id)?;
     if entries.is_empty() {
         let zs = zone_list(&conn, p.id)?;
-        if zs.is_empty() { return Ok(format!("{} Use `local-dns add myapp.test 127.0.0.1`", "No entries.".yellow())); }
+        if zs.is_empty() {
+            return Ok(format!(
+                "{} Use `local-dns add myapp.test 127.0.0.1`",
+                "No entries.".yellow()
+            ));
+        }
         return Ok(format!("{}", "No entries.".yellow()));
     }
     let mut out = format!("{} {}\n", "Profile:".cyan().bold(), p.name);
-    let mut cz = String::new(); let mut cg = String::new();
+    let mut cz = String::new();
+    let mut cg = String::new();
     for e in &entries {
         if e.zone_name != cz {
             cz = e.zone_name.clone();
-            let d: Option<String> = conn.query_row("SELECT display_name FROM zones WHERE profile_id = ?1 AND name = ?2", params![p.id, cz], |row| row.get(0)).ok().flatten();
-            out.push_str(&format!("\n  {} {}{}\n", "Zone:".yellow().bold(), cz, d.as_deref().map(|s| format!(" ({})", s.cyan())).unwrap_or_default()));
+            let d: Option<String> = conn
+                .query_row(
+                    "SELECT display_name FROM zones WHERE profile_id = ?1 AND name = ?2",
+                    params![p.id, cz],
+                    |row| row.get(0),
+                )
+                .ok()
+                .flatten();
+            out.push_str(&format!(
+                "\n  {} {}{}\n",
+                "Zone:".yellow().bold(),
+                cz,
+                d.as_deref()
+                    .map(|s| format!(" ({})", s.cyan()))
+                    .unwrap_or_default()
+            ));
             cg.clear();
         }
         if e.group_name != cg {
             cg = e.group_name.clone();
             let d: Option<String> = conn.query_row("SELECT gr.display_name FROM groups gr JOIN zones z ON gr.zone_id = z.id WHERE z.profile_id = ?1 AND z.name = ?2 AND gr.name = ?3", params![p.id, cz, cg], |row| row.get(0)).ok().flatten();
-            out.push_str(&format!("    {} {}{}\n", "Group:".green().bold(), cg, d.as_deref().map(|s| format!(" ({})", s.cyan())).unwrap_or_default()));
+            out.push_str(&format!(
+                "    {} {}{}\n",
+                "Group:".green().bold(),
+                cg,
+                d.as_deref()
+                    .map(|s| format!(" ({})", s.cyan()))
+                    .unwrap_or_default()
+            ));
         }
-        out.push_str(&format!("      {:<30} {:<15}  {}\n", e.domain.green(), e.ip.cyan(), e.comment.as_deref().unwrap_or("").dimmed()));
+        out.push_str(&format!(
+            "      {:<30} {:<15}  {}\n",
+            e.domain.green(),
+            e.ip.cyan(),
+            e.comment.as_deref().unwrap_or("").dimmed()
+        ));
     }
     Ok(out)
 }
@@ -821,34 +1468,59 @@ fn cmd_check(domain: &str) -> Result<String, String> {
         let mut out = String::new();
         for e in &entries {
             let loaded = is_entry_loaded(&e.domain);
-            let loaded_str = if loaded { "loaded ✓".green().to_string() } else { "needs apply".yellow().to_string() };
-            out.push_str(&format!("{:<30} created: {:<20} {}\n", e.domain.green(), e.created_at.cyan(), loaded_str));
+            let loaded_str = if loaded {
+                "loaded ✓".green().to_string()
+            } else {
+                "needs apply".yellow().to_string()
+            };
+            out.push_str(&format!(
+                "{:<30} created: {:<20} {}\n",
+                e.domain.green(),
+                e.created_at.cyan(),
+                loaded_str
+            ));
         }
         return Ok(out);
     }
 
     // Specific domain
-    let entry: Option<Entry> = conn.query_row(
-        "SELECT e.domain, e.ip, e.comment, z.name, g.name, e.created_at FROM entries e
+    let entry: Option<Entry> = conn
+        .query_row(
+            "SELECT e.domain, e.ip, e.comment, z.name, g.name, e.created_at FROM entries e
          JOIN groups g ON e.group_id = g.id JOIN zones z ON g.zone_id = z.id
          WHERE z.profile_id = ?1 AND e.domain = ?2",
-        params![p.id, domain],
-        |row| Ok(Entry {
-            domain: row.get(0)?, ip: row.get(1)?, comment: row.get(2)?,
-            zone_name: row.get(3)?, group_name: row.get(4)?, created_at: row.get(5)?
-        }),
-    ).ok();
+            params![p.id, domain],
+            |row| {
+                Ok(Entry {
+                    domain: row.get(0)?,
+                    ip: row.get(1)?,
+                    comment: row.get(2)?,
+                    zone_name: row.get(3)?,
+                    group_name: row.get(4)?,
+                    created_at: row.get(5)?,
+                })
+            },
+        )
+        .ok();
 
     match entry {
         Some(e) => {
             let loaded = is_entry_loaded(&e.domain);
-            let loaded_str = if loaded { "loaded ✓".green().to_string() } else { "needs apply".yellow().to_string() };
+            let loaded_str = if loaded {
+                "loaded ✓".green().to_string()
+            } else {
+                "needs apply".yellow().to_string()
+            };
             let mut out = format!("{} {}\n", "Domain:".cyan().bold(), e.domain.green());
             out.push_str(&format!("{} {}\n", "IP:".bold(), e.ip.cyan()));
             out.push_str(&format!("{} {}\n", "Zone:".bold(), e.zone_name));
             out.push_str(&format!("{} {}\n", "Group:".bold(), e.group_name));
             out.push_str(&format!("{} {}\n", "Created:".bold(), e.created_at.cyan()));
-            out.push_str(&format!("{} {}\n", "Comment:".bold(), e.comment.as_deref().unwrap_or("(none)")));
+            out.push_str(&format!(
+                "{} {}\n",
+                "Comment:".bold(),
+                e.comment.as_deref().unwrap_or("(none)")
+            ));
             out.push_str(&format!("{} {}\n", "Status:".bold(), loaded_str));
             Ok(out)
         }
@@ -863,11 +1535,11 @@ fn is_entry_loaded(domain: &str) -> bool {
     }
     fs::read_to_string(hosts_path)
         .ok()
-        .map_or(false, |content| {
+        .is_some_and(|content| {
             let clean = domain.trim_start_matches("*.");
-            content.lines().any(|line| {
-                line.split_whitespace().nth(1).map_or(false, |d| d == clean)
-            })
+            content
+                .lines()
+                .any(|line| line.split_whitespace().nth(1) == Some(clean))
         })
 }
 
@@ -879,33 +1551,69 @@ fn handle_profile(action: ProfileAction) -> Result<String, String> {
     match action {
         ProfileAction::Show => {
             let conn = open_db_readonly()?;
-            Ok(format!("{} {}", "Active profile:".cyan().bold(), active_profile(&conn)?.name.green().bold()))
+            Ok(format!(
+                "{} {}",
+                "Active profile:".cyan().bold(),
+                active_profile(&conn)?.name.green().bold()
+            ))
         }
         ProfileAction::Switch { name } => {
             let conn = open_db()?;
-            let exists: bool = conn.query_row("SELECT COUNT(*) FROM profiles WHERE name = ?1", params![name], |row| row.get::<_, i64>(0)).unwrap_or(0) > 0;
-            if !exists { return Err(format!("Profile '{name}' not found")); }
+            let exists: bool = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM profiles WHERE name = ?1",
+                    params![name],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap_or(0)
+                > 0;
+            if !exists {
+                return Err(format!("Profile '{name}' not found"));
+            }
             conn.execute("UPDATE profiles SET is_active = 0", []).ok();
-            conn.execute("UPDATE profiles SET is_active = 1 WHERE name = ?1", params![name]).ok();
-            cmd_apply()?; Ok(format!("{} Switched to '{name}'", "➜".green().bold()))
+            conn.execute(
+                "UPDATE profiles SET is_active = 1 WHERE name = ?1",
+                params![name],
+            )
+            .ok();
+            cmd_apply()?;
+            Ok(format!("{} Switched to '{name}'", "➜".green().bold()))
         }
         ProfileAction::Create { name } => {
             let conn = open_db()?;
             conn.execute("INSERT INTO profiles (name) VALUES (?1)", params![name])
-                .map_err(|e| if e.to_string().contains("UNIQUE") { format!("Profile '{name}' exists") } else { format!("{e}") })?;
+                .map_err(|e| {
+                    if e.to_string().contains("UNIQUE") {
+                        format!("Profile '{name}' exists")
+                    } else {
+                        format!("{e}")
+                    }
+                })?;
             Ok(format!("{} Profile '{name}' created", "✓".green()))
         }
         ProfileAction::List => {
             let conn = open_db_readonly()?;
             let n = profile_names(&conn)?;
-            Ok(if n.is_empty() { "No profiles.".yellow().to_string() } else {
-                format!("{}:\n{}", "Profiles".bold(), n.iter().map(|x| format!("  {x}")).collect::<Vec<_>>().join("\n"))
+            Ok(if n.is_empty() {
+                "No profiles.".yellow().to_string()
+            } else {
+                format!(
+                    "{}:\n{}",
+                    "Profiles".bold(),
+                    n.iter()
+                        .map(|x| format!("  {x}"))
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                )
             })
         }
         ProfileAction::Delete { name } => {
             let conn = open_db()?;
-            if name == active_profile(&conn)?.name { return Err("Cannot delete active profile".into()); }
-            conn.execute("DELETE FROM profiles WHERE name = ?1", params![name]).ok();
+            if name == active_profile(&conn)?.name {
+                return Err("Cannot delete active profile".into());
+            }
+            conn.execute("DELETE FROM profiles WHERE name = ?1", params![name])
+                .ok();
             Ok(format!("{} Profile '{name}' deleted", "✓".green()))
         }
     }
@@ -920,12 +1628,20 @@ fn handle_telemetry(action: TelemetryAction, tel: &telemetry::Telemetry) -> Resu
         TelemetryAction::Enable => {
             let mut t = telemetry::Telemetry::load(&data_dir());
             t.enable()?;
-            Ok(format!("{} Anonymous telemetry enabled\n{}", "✓".green(), t.status()))
+            Ok(format!(
+                "{} Anonymous telemetry enabled\n{}",
+                "✓".green(),
+                t.status()
+            ))
         }
         TelemetryAction::Disable => {
             let mut t = telemetry::Telemetry::load(&data_dir());
             t.disable()?;
-            Ok(format!("{} Anonymous telemetry disabled\n{}", "✓".yellow(), t.status()))
+            Ok(format!(
+                "{} Anonymous telemetry disabled\n{}",
+                "✓".yellow(),
+                t.status()
+            ))
         }
         TelemetryAction::Status => Ok(tel.status()),
     }
@@ -936,19 +1652,40 @@ fn handle_telemetry(action: TelemetryAction, tel: &telemetry::Telemetry) -> Resu
 // ═══════════════════════════════════════════════════════════
 
 fn cmd_apply() -> Result<String, String> {
-    let conn = open_db()?; let p = active_profile(&conn)?; let entries = all_entries(&conn, p.id)?;
+    let conn = open_db()?;
+    let p = active_profile(&conn)?;
+    let entries = all_entries(&conn, p.id)?;
     ensure_run_dir()?;
-    let mut lines: Vec<String> = entries.iter().map(|e| {
-        let domain = e.domain.trim_start_matches("*.");
-        let _tag = format!("[{}]", e.group_name);
-        match &e.comment { Some(c) => format!("{}\t{domain}\t# {c} [{}/{}]", e.ip, e.zone_name, e.group_name), None => format!("{}\t{domain}\t# [{}/{}]", e.ip, e.zone_name, e.group_name) }
-    }).collect();
-    lines.sort_by(|a, b| a.split_whitespace().nth(1).unwrap_or("").cmp(b.split_whitespace().nth(1).unwrap_or("")));
+    let mut lines: Vec<String> = entries
+        .iter()
+        .map(|e| {
+            let domain = e.domain.trim_start_matches("*.");
+            let _tag = format!("[{}]", e.group_name);
+            match &e.comment {
+                Some(c) => format!(
+                    "{}\t{domain}\t# {c} [{}/{}]",
+                    e.ip, e.zone_name, e.group_name
+                ),
+                None => format!("{}\t{domain}\t# [{}/{}]", e.ip, e.zone_name, e.group_name),
+            }
+        })
+        .collect();
+    lines.sort_by(|a, b| {
+        a.split_whitespace()
+            .nth(1)
+            .unwrap_or("")
+            .cmp(b.split_whitespace().nth(1).unwrap_or(""))
+    });
     lines.push(String::new());
     let hosts_path = run_dir().join("hosts");
     fs::write(hosts_path, lines.join("\n")).map_err(|e| format!("{e}"))?;
     reload_dnsmasq()?;
-    Ok(format!("{} Applied '{}' ({} entries)", "✓".green(), p.name, entries.len().to_string().cyan()))
+    Ok(format!(
+        "{} Applied '{}' ({} entries)",
+        "✓".green(),
+        p.name,
+        entries.len().to_string().cyan()
+    ))
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -959,25 +1696,51 @@ fn cmd_status() -> Result<String, String> {
     let mut out = String::new();
     let state = detect_system().ok();
     let running = is_service_running();
-    out.push_str(&format!("{} {}\n", "Platform:".cyan().bold(), std::env::consts::OS));
-    let status_color = if running { "running ✓".green() } else { "stopped ✗".red().bold() };
+    out.push_str(&format!(
+        "{} {}\n",
+        "Platform:".cyan().bold(),
+        std::env::consts::OS
+    ));
+    let status_color = if running {
+        "running ✓".green()
+    } else {
+        "stopped ✗".red().bold()
+    };
     out.push_str(&format!("local-dnsmasq: {status_color}\n"));
     if let Some(ref s) = state {
-        for svc in &s.services { out.push_str(&format!("  {}: {}\n", svc.cyan(), "running".green())); }
+        for svc in &s.services {
+            out.push_str(&format!("  {}: {}\n", svc.cyan(), "running".green()));
+        }
     }
     if let Ok(conn) = open_db_readonly() {
         if let Ok(p) = active_profile(&conn) {
-            out.push_str(&format!("\n{} {}\n", "Profile:".cyan().bold(), p.name.bold()));
+            out.push_str(&format!(
+                "\n{} {}\n",
+                "Profile:".cyan().bold(),
+                p.name.bold()
+            ));
             if let Ok(zs) = zone_list(&conn, p.id) {
                 for (zn, zd) in &zs {
                     if let Ok(zid) = resolve_zone(&conn, p.id, zn) {
                         if let Ok(gs) = group_list(&conn, zid) {
                             for (gn, gd) in &gs {
                                 let c: i64 = conn.query_row("SELECT COUNT(*) FROM entries e JOIN groups g ON e.group_id = g.id WHERE g.zone_id = ?1 AND g.name = ?2", params![zid, gn], |row| row.get(0)).unwrap_or(0);
-                                let ecount = if c > 0 { c.to_string().green() } else { c.to_string().yellow() };
-                                out.push_str(&format!("  {}{}/{}{}: {ecount} entries\n",
-                                    zn.yellow(), zd.as_deref().map(|s| format!(" ({})", s.cyan())).unwrap_or_default(),
-                                    gn.green(), gd.as_deref().map(|s| format!(" ({})", s.cyan())).unwrap_or_default()));
+                                let ecount = if c > 0 {
+                                    c.to_string().green()
+                                } else {
+                                    c.to_string().yellow()
+                                };
+                                out.push_str(&format!(
+                                    "  {}{}/{}{}: {ecount} entries\n",
+                                    zn.yellow(),
+                                    zd.as_deref()
+                                        .map(|s| format!(" ({})", s.cyan()))
+                                        .unwrap_or_default(),
+                                    gn.green(),
+                                    gd.as_deref()
+                                        .map(|s| format!(" ({})", s.cyan()))
+                                        .unwrap_or_default()
+                                ));
                             }
                         }
                     }
@@ -986,9 +1749,25 @@ fn cmd_status() -> Result<String, String> {
         }
     }
     let lp = log_path();
-    if let Ok(m) = fs::metadata(&lp) { if m.len() > 0 { out.push_str(&format!("\n{} {}\n", "Log:".cyan().bold(), lp.display().to_string().cyan())); } }
-    out.push_str(&format!("\n{} {}\n", "dnsmasq:".bold(), dnsmasq_binary().cyan()));
-    out.push_str(&format!("{} {}\n", "Data:".bold(), data_dir().display().to_string().cyan()));
+    if let Ok(m) = fs::metadata(&lp) {
+        if m.len() > 0 {
+            out.push_str(&format!(
+                "\n{} {}\n",
+                "Log:".cyan().bold(),
+                lp.display().to_string().cyan()
+            ));
+        }
+    }
+    out.push_str(&format!(
+        "\n{} {}\n",
+        "dnsmasq:".bold(),
+        dnsmasq_binary().cyan()
+    ));
+    out.push_str(&format!(
+        "{} {}\n",
+        "Data:".bold(),
+        data_dir().display().to_string().cyan()
+    ));
     Ok(out)
 }
 
@@ -998,44 +1777,101 @@ fn cmd_status() -> Result<String, String> {
 
 fn is_service_running() -> bool {
     if supports_systemd() {
-        Command::new("systemctl").args(["is-active", "--quiet", DNSMASQ_SERVICE]).status().ok().map_or(false, |s| s.success())
+        Command::new("systemctl")
+            .args(["is-active", "--quiet", DNSMASQ_SERVICE])
+            .status()
+            .ok()
+            .is_some_and(|s| s.success())
     } else if cfg!(target_os = "macos") {
-        Command::new("launchctl").args(["print", &format!("system/{DNSMASQ_SERVICE}")]).status().ok().map_or(false, |s| s.success())
+        Command::new("launchctl")
+            .args(["print", &format!("system/{DNSMASQ_SERVICE}")])
+            .status()
+            .ok()
+            .is_some_and(|s| s.success())
     } else {
         // Check PID file
-        fs::read_to_string(pid_path()).ok().and_then(|p| p.trim().parse::<i32>().ok())
-            .map_or(false, |pid| Command::new("kill").args(["-0", &pid.to_string()]).status().ok().map_or(false, |s| s.success()))
+        fs::read_to_string(pid_path())
+            .ok()
+            .and_then(|p| p.trim().parse::<i32>().ok())
+            .is_some_and(|pid| {
+                Command::new("kill")
+                    .args(["-0", &pid.to_string()])
+                    .status()
+                    .ok()
+                    .is_some_and(|s| s.success())
+            })
     }
 }
 
 fn cmd_logs(follow: bool, errors: bool, lines: usize) -> Result<String, String> {
     let lp = log_path();
-    if !lp.exists() { return Err(format!("Log not found: {}", lp.display())); }
+    if !lp.exists() {
+        return Err(format!("Log not found: {}", lp.display()));
+    }
     if follow {
         if cfg!(target_os = "windows") {
-            Command::new("powershell").args(["Get-Content", "-Wait", &lp.to_string_lossy()]).status().ok();
+            Command::new("powershell")
+                .args(["Get-Content", "-Wait", &lp.to_string_lossy()])
+                .status()
+                .ok();
         } else {
-            Command::new("tail").args(["-f", &lp.to_string_lossy()]).status().ok();
+            Command::new("tail")
+                .args(["-f", &lp.to_string_lossy()])
+                .status()
+                .ok();
         }
         return Ok(String::new());
     }
     if errors {
         let r = if has_tool("rg") {
-            Command::new("rg").args(["-i", "(NXDOMAIN|REFUSED|SERVFAIL|TIMEOUT|error)", &lp.to_string_lossy()]).output()
+            Command::new("rg")
+                .args([
+                    "-i",
+                    "(NXDOMAIN|REFUSED|SERVFAIL|TIMEOUT|error)",
+                    &lp.to_string_lossy(),
+                ])
+                .output()
         } else if has_tool("grep") {
-            Command::new("grep").args(["-i", "-E", "(NXDOMAIN|REFUSED|SERVFAIL|TIMEOUT|error)", &lp.to_string_lossy()]).output()
-        } else { return Err("No search tool found (rg/grep)".into()); }
+            Command::new("grep")
+                .args([
+                    "-i",
+                    "-E",
+                    "(NXDOMAIN|REFUSED|SERVFAIL|TIMEOUT|error)",
+                    &lp.to_string_lossy(),
+                ])
+                .output()
+        } else {
+            return Err("No search tool found (rg/grep)".into());
+        }
         .map_err(|e| format!("{e}"))?;
         let s = String::from_utf8_lossy(&r.stdout).to_string();
-        return Ok(if s.is_empty() { "No errors.".green().to_string() } else { s.trim().into() });
+        return Ok(if s.is_empty() {
+            "No errors.".green().to_string()
+        } else {
+            s.trim().into()
+        });
     }
     let r = if cfg!(target_os = "windows") {
-        Command::new("powershell").args(["Get-Content", "-Tail", &lines.to_string(), &lp.to_string_lossy()]).output()
+        Command::new("powershell")
+            .args([
+                "Get-Content",
+                "-Tail",
+                &lines.to_string(),
+                &lp.to_string_lossy(),
+            ])
+            .output()
     } else {
-        Command::new("tail").args(["-n", &lines.to_string(), &lp.to_string_lossy()]).output()
-    }.map_err(|e| format!("{e}"))?;
+        Command::new("tail")
+            .args(["-n", &lines.to_string(), &lp.to_string_lossy()])
+            .output()
+    }
+    .map_err(|e| format!("{e}"))?;
     let s = String::from_utf8_lossy(&r.stdout).to_string();
-    Ok(if s.is_empty() { "Log is empty.".yellow().to_string() } else { s.trim().into() })
+    Ok(if s.is_empty() {
+        "Log is empty.".yellow().to_string()
+    } else {
+        s.trim().into()
+    })
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1043,7 +1879,8 @@ fn cmd_logs(follow: bool, errors: bool, lines: usize) -> Result<String, String> 
 // ═══════════════════════════════════════════════════════════
 
 fn write_dnsmasq_conf(state: &SystemState) -> Result<(), String> {
-    let conf = format!(r#"# local-dns — managed by local-dns CLI
+    let conf = format!(
+        r#"# local-dns — managed by local-dns CLI
 port=5354
 bind-interfaces
 listen-address=127.0.0.1
@@ -1058,13 +1895,22 @@ pid-file={}
 server={}#{}
 log-queries
 log-facility={}
-"#, run_dir().display(), run_dir().display(), pid_path().display(), state.upstream_dns, state.upstream_port, log_path().display());
-    fs::write(data_dir().join("dnsmasq.conf"), &conf).map_err(|e| format!("Cannot write config: {e}"))
+"#,
+        run_dir().display(),
+        run_dir().display(),
+        pid_path().display(),
+        state.upstream_dns,
+        state.upstream_port,
+        log_path().display()
+    );
+    fs::write(data_dir().join("dnsmasq.conf"), &conf)
+        .map_err(|e| format!("Cannot write config: {e}"))
 }
 
 fn install_service() -> Result<(), String> {
     if supports_systemd() {
-        let unit = format!(r#"[Unit]
+        let unit = format!(
+            r#"[Unit]
 Description=local-dns — Local DNS management
 After=network.target
 [Service]
@@ -1076,13 +1922,17 @@ Restart=on-failure
 RestartSec=5
 [Install]
 WantedBy=multi-user.target
-"#, dnsmasq_binary(), data_dir().display());
+"#,
+            dnsmasq_binary(),
+            data_dir().display()
+        );
         let path = format!("/etc/systemd/system/{DNSMASQ_SERVICE}.service");
         fs::write(&path, &unit).map_err(|e| format!("Cannot write systemd unit: {e}"))?;
         println!("  {} {}", "Systemd unit:".bold(), path.cyan());
     } else if supports_launchctl() {
         // macOS launchd plist
-        let plist = format!(r#"<?xml version="1.0" encoding="UTF-8"?>
+        let plist = format!(
+            r#"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
     <key>Label</key><string>{DNSMASQ_SERVICE}</string>
@@ -1091,12 +1941,18 @@ WantedBy=multi-user.target
     </array>
     <key>KeepAlive</key><true/>
     <key>RunAtLoad</key><true/>
-</dict></plist>"#, dnsmasq_binary(), data_dir().display());
+</dict></plist>"#,
+            dnsmasq_binary(),
+            data_dir().display()
+        );
         let path = format!("/Library/LaunchDaemons/{DNSMASQ_SERVICE}.plist");
         fs::write(&path, &plist).map_err(|e| format!("Cannot write launchd plist: {e}"))?;
         println!("  {} {}", "LaunchDaemon:".bold(), path.cyan());
     } else {
-        println!("  {}", "(no systemd/launchd detected — start dnsmasq manually)".yellow());
+        println!(
+            "  {}",
+            "(no systemd/launchd detected — start dnsmasq manually)".yellow()
+        );
     }
     Ok(())
 }
@@ -1104,42 +1960,113 @@ WantedBy=multi-user.target
 fn reload_dnsmasq() -> Result<(), String> {
     // 1) systemd reload
     if supports_systemd() {
-        if let Ok(s) = Command::new("systemctl").args(["reload", DNSMASQ_SERVICE]).status() { if s.success() { return Ok(()); } }
+        if let Ok(s) = Command::new("systemctl")
+            .args(["reload", DNSMASQ_SERVICE])
+            .status()
+        {
+            if s.success() {
+                return Ok(());
+            }
+        }
     }
 
     // 2) launchctl reload (macOS)
     if supports_launchctl() {
-        if let Ok(s) = Command::new("launchctl").args(["kickstart", &format!("system/{DNSMASQ_SERVICE}")]).status() { if s.success() { return Ok(()); } }
+        if let Ok(s) = Command::new("launchctl")
+            .args(["kickstart", &format!("system/{DNSMASQ_SERVICE}")])
+            .status()
+        {
+            if s.success() {
+                return Ok(());
+            }
+        }
     }
 
     // 3) Direct SIGHUP via PID file
     if let Ok(p) = fs::read_to_string(pid_path()) {
         if let Ok(pid) = p.trim().parse::<i32>() {
-            #[cfg(unix)] { if Command::new("kill").args(["-HUP", &pid.to_string()]).status().ok().map_or(false, |s| s.success()) { return Ok(()); } }
-            #[cfg(windows)] { if Command::new("taskkill").args(["/PID", &pid.to_string(), "/F"]).status().ok().map_or(false, |s| s.success()) { return Ok(()); } }
+            #[cfg(unix)]
+            {
+                if Command::new("kill")
+                    .args(["-HUP", &pid.to_string()])
+                    .status()
+                    .ok()
+                    .is_some_and(|s| s.success())
+                {
+                    return Ok(());
+                }
+            }
+            #[cfg(windows)]
+            {
+                if Command::new("taskkill")
+                    .args(["/PID", &pid.to_string(), "/F"])
+                    .status()
+                    .ok()
+                    .is_some_and(|s| s.success())
+                {
+                    return Ok(());
+                }
+            }
         }
     }
 
     // 4) Try getting PID from systemctl
     if supports_systemd() {
-        if let Ok(o) = Command::new("systemctl").args(["show", "--property", "MainPID", DNSMASQ_SERVICE]).output() {
-            if let Some(ps) = String::from_utf8_lossy(&o.stdout).trim().strip_prefix("MainPID=") {
-                if let Ok(pid) = ps.trim().parse::<i32>() { if pid > 1 {
-                    #[cfg(unix)] { if Command::new("kill").args(["-HUP", &pid.to_string()]).status().ok().map_or(false, |s| s.success()) { return Ok(()); } }
-                }}
+        if let Ok(o) = Command::new("systemctl")
+            .args(["show", "--property", "MainPID", DNSMASQ_SERVICE])
+            .output()
+        {
+            if let Some(ps) = String::from_utf8_lossy(&o.stdout)
+                .trim()
+                .strip_prefix("MainPID=")
+            {
+                if let Ok(pid) = ps.trim().parse::<i32>() {
+                    if pid > 1 {
+                        #[cfg(unix)]
+                        {
+                            if Command::new("kill")
+                                .args(["-HUP", &pid.to_string()])
+                                .status()
+                                .ok()
+                                .is_some_and(|s| s.success())
+                            {
+                                return Ok(());
+                            }
+                        }
+                    }
+                }
             }
         }
     }
 
     // 5) Restart as last resort
     if supports_systemd() {
-        Command::new("systemctl").args(["restart", DNSMASQ_SERVICE]).status()
-            .map(|s| if s.success() { Ok(()) } else { Err("Restart failed".into()) })
+        Command::new("systemctl")
+            .args(["restart", DNSMASQ_SERVICE])
+            .status()
+            .map(|s| {
+                if s.success() {
+                    Ok(())
+                } else {
+                    Err("Restart failed".into())
+                }
+            })
             .unwrap_or_else(|e| Err(format!("{e}")))
     } else if supports_launchctl() {
-        Command::new("launchctl").args(["stop", &format!("system/{DNSMASQ_SERVICE}")]).status().ok();
-        Command::new("launchctl").args(["start", &format!("system/{DNSMASQ_SERVICE}")]).status()
-            .map(|s| if s.success() { Ok(()) } else { Err("Restart failed".into()) })
+        Command::new("launchctl")
+            .args(["stop", &format!("system/{DNSMASQ_SERVICE}")])
+            .status()
+            .ok();
+        Command::new("launchctl")
+            .args(["start", &format!("system/{DNSMASQ_SERVICE}")])
+            .status()
+            .map(|s| {
+                if s.success() {
+                    Ok(())
+                } else {
+                    Err("Restart failed".into())
+                }
+            })
             .unwrap_or_else(|e| Err(format!("{e}")))
     } else {
         Err("Cannot reload — start dnsmasq manually".into())
@@ -1157,7 +2084,8 @@ mod tests {
         let dir = TempDir::new().expect("tempdir");
         let path = dir.path().join("test.db");
         let conn = Connection::open(&path).expect("open db");
-        conn.execute_batch("PRAGMA foreign_keys=ON;").expect("pragmas");
+        conn.execute_batch("PRAGMA foreign_keys=ON;")
+            .expect("pragmas");
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS profiles (
                 id    INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE NOT NULL,
@@ -1195,14 +2123,16 @@ mod tests {
         conn.execute(
             "INSERT INTO profiles (name, is_active) VALUES (?1, ?2)",
             params![name, active as i32],
-        ).expect("insert profile");
+        )
+        .expect("insert profile");
     }
 
     fn insert_zone(conn: &Connection, pid: i64, name: &str, display: Option<&str>) -> i64 {
         conn.execute(
             "INSERT INTO zones (profile_id, name, display_name) VALUES (?1, ?2, ?3)",
             params![pid, name, display],
-        ).expect("insert zone");
+        )
+        .expect("insert zone");
         conn.last_insert_rowid()
     }
 
@@ -1210,7 +2140,8 @@ mod tests {
         conn.execute(
             "INSERT INTO groups (zone_id, name, display_name) VALUES (?1, ?2, ?3)",
             params![zid, name, display],
-        ).expect("insert group");
+        )
+        .expect("insert group");
         conn.last_insert_rowid()
     }
 
@@ -1297,7 +2228,11 @@ mod tests {
         insert_profile(&conn, "a", true);
         insert_profile(&conn, "b", false);
         let pa = active_profile(&conn).unwrap();
-        let pb = Profile { id: 2, name: "b".into(), is_active: false };
+        let pb = Profile {
+            id: 2,
+            name: "b".into(),
+            is_active: false,
+        };
         insert_zone(&conn, pa.id, "shared", None);
         insert_zone(&conn, pb.id, "shared", None);
         assert!(resolve_zone(&conn, pa.id, "shared").is_ok());
@@ -1439,7 +2374,11 @@ mod tests {
         insert_profile(&conn, "a", true);
         insert_profile(&conn, "b", false);
         let pa = active_profile(&conn).unwrap();
-        let pb = Profile { id: 2, name: "b".into(), is_active: false };
+        let pb = Profile {
+            id: 2,
+            name: "b".into(),
+            is_active: false,
+        };
         let za = insert_zone(&conn, pa.id, "z", None);
         let zb = insert_zone(&conn, pb.id, "z", None);
         let ga = insert_group(&conn, za, "g", None);
@@ -1458,9 +2397,13 @@ mod tests {
         let zid = insert_zone(&conn, pid, "z", None);
         let gid = insert_group(&conn, zid, "g", None);
         insert_entry(&conn, gid, "*.wild", "10.0.0.1", None);
-        let sk: String = conn.query_row(
-            "SELECT sort_key FROM entries WHERE domain = '*.wild'", [], |r| r.get(0),
-        ).unwrap();
+        let sk: String = conn
+            .query_row(
+                "SELECT sort_key FROM entries WHERE domain = '*.wild'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
         assert_eq!(sk, "wild");
     }
 
@@ -1508,12 +2451,14 @@ mod tests {
         let zid = insert_zone(&conn, pid, "z", None);
         let gid = insert_group(&conn, zid, "g", None);
         insert_entry(&conn, gid, "gone.test", "1.1.1.1", None);
-        let n = conn.execute(
-            "DELETE FROM entries WHERE id IN (SELECT e.id FROM entries e
+        let n = conn
+            .execute(
+                "DELETE FROM entries WHERE id IN (SELECT e.id FROM entries e
              JOIN groups g ON e.group_id = g.id JOIN zones z ON g.zone_id = z.id
              WHERE z.profile_id = ?1 AND e.domain = ?2)",
-            params![pid, "gone.test"],
-        ).unwrap();
+                params![pid, "gone.test"],
+            )
+            .unwrap();
         assert_eq!(n, 1);
         assert!(all_entries(&conn, pid).unwrap().is_empty());
     }
@@ -1523,12 +2468,14 @@ mod tests {
         let (conn, _dir) = test_db();
         insert_profile(&conn, "p", true);
         let pid = active_profile(&conn).unwrap().id;
-        let n = conn.execute(
-            "DELETE FROM entries WHERE id IN (SELECT e.id FROM entries e
+        let n = conn
+            .execute(
+                "DELETE FROM entries WHERE id IN (SELECT e.id FROM entries e
              JOIN groups g ON e.group_id = g.id JOIN zones z ON g.zone_id = z.id
              WHERE z.profile_id = ?1 AND e.domain = ?2)",
-            params![pid, "ghost.test"],
-        ).unwrap();
+                params![pid, "ghost.test"],
+            )
+            .unwrap();
         assert_eq!(n, 0);
     }
 
@@ -1545,8 +2492,16 @@ mod tests {
         let ga = insert_group(&conn, zid, "frontend", None);
         let gb = insert_group(&conn, zid, "backend", None);
         insert_entry(&conn, ga, "app.test", "1.1.1.1", None);
-        conn.execute("UPDATE entries SET group_id = ?1 WHERE domain = 'app.test'", params![gb]).unwrap();
-        conn.execute("DELETE FROM entries WHERE group_id = ?1 AND domain = 'app.test'", params![ga]).ok();
+        conn.execute(
+            "UPDATE entries SET group_id = ?1 WHERE domain = 'app.test'",
+            params![gb],
+        )
+        .unwrap();
+        conn.execute(
+            "DELETE FROM entries WHERE group_id = ?1 AND domain = 'app.test'",
+            params![ga],
+        )
+        .ok();
         let entries = all_entries(&conn, pid).unwrap();
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].group_name, "backend");
@@ -1561,12 +2516,15 @@ mod tests {
         let gid = insert_group(&conn, zid, "g", None);
         insert_entry(&conn, gid, "same.test", "1.1.1.1", None);
         // moving via DB insert+delete — same group implies same gid
-        let existing: i64 = conn.query_row(
-            "SELECT count(*) FROM entries WHERE id IN (SELECT e.id FROM entries e
+        let existing: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM entries WHERE id IN (SELECT e.id FROM entries e
              JOIN groups g ON e.group_id = g.id JOIN zones z ON g.zone_id = z.id
              WHERE z.profile_id = ?1 AND e.domain = ?2)",
-            params![pid, "same.test"], |r| r.get(0),
-        ).unwrap();
+                params![pid, "same.test"],
+                |r| r.get(0),
+            )
+            .unwrap();
         assert_eq!(existing, 1);
     }
 
@@ -1670,8 +2628,13 @@ mod tests {
         let (conn, _dir) = test_db();
         insert_profile(&conn, "default", true);
         insert_profile(&conn, "staging", false);
-        conn.execute("UPDATE profiles SET is_active = 0", []).unwrap();
-        conn.execute("UPDATE profiles SET is_active = 1 WHERE name = 'staging'", []).unwrap();
+        conn.execute("UPDATE profiles SET is_active = 0", [])
+            .unwrap();
+        conn.execute(
+            "UPDATE profiles SET is_active = 1 WHERE name = 'staging'",
+            [],
+        )
+        .unwrap();
         assert_eq!(active_profile(&conn).unwrap().name, "staging");
     }
 
@@ -1680,7 +2643,8 @@ mod tests {
         let (conn, _dir) = test_db();
         insert_profile(&conn, "active", true);
         insert_profile(&conn, "old", false);
-        conn.execute("DELETE FROM profiles WHERE name = 'old'", []).unwrap();
+        conn.execute("DELETE FROM profiles WHERE name = 'old'", [])
+            .unwrap();
         assert_eq!(profile_names(&conn).unwrap(), vec!["active"]);
     }
 
@@ -1729,14 +2693,19 @@ mod tests {
         let zid = insert_zone(&conn, pid, "temp", None);
         let gid = insert_group(&conn, zid, "g", None);
         insert_entry(&conn, gid, "x.test", "1.1.1.1", None);
-        conn.execute("DELETE FROM zones WHERE id = ?1", params![zid]).unwrap();
-        let g: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM groups WHERE zone_id = ?1", params![zid], |r| r.get(0),
-        ).unwrap();
+        conn.execute("DELETE FROM zones WHERE id = ?1", params![zid])
+            .unwrap();
+        let g: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM groups WHERE zone_id = ?1",
+                params![zid],
+                |r| r.get(0),
+            )
+            .unwrap();
         assert_eq!(g, 0);
-        let e: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM entries", [], |r| r.get(0),
-        ).unwrap();
+        let e: i64 = conn
+            .query_row("SELECT COUNT(*) FROM entries", [], |r| r.get(0))
+            .unwrap();
         assert_eq!(e, 0);
     }
 
@@ -1747,9 +2716,9 @@ mod tests {
         let pid = active_profile(&conn).unwrap().id;
         let zid = insert_zone(&conn, pid, "z", None);
         insert_group(&conn, zid, "workers", Some("Worker Nodes"));
-        assert!(group_list(&conn, zid).unwrap().contains(
-            &("workers".into(), Some("Worker Nodes".into())),
-        ));
+        assert!(group_list(&conn, zid)
+            .unwrap()
+            .contains(&("workers".into(), Some("Worker Nodes".into())),));
     }
 
     #[test]
@@ -1785,10 +2754,11 @@ mod tests {
         let zid = insert_zone(&conn, pid, "z", None);
         let gid = insert_group(&conn, zid, "g", None);
         insert_entry(&conn, gid, "del.test", "1.1.1.1", None);
-        conn.execute("DELETE FROM groups WHERE id = ?1", params![gid]).unwrap();
-        let e: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM entries", [], |r| r.get(0),
-        ).unwrap();
+        conn.execute("DELETE FROM groups WHERE id = ?1", params![gid])
+            .unwrap();
+        let e: i64 = conn
+            .query_row("SELECT COUNT(*) FROM entries", [], |r| r.get(0))
+            .unwrap();
         assert_eq!(e, 0);
     }
 
@@ -1804,18 +2774,19 @@ mod tests {
         let zid = insert_zone(&conn, pid, "z", None);
         let gid = insert_group(&conn, zid, "g", None);
         insert_entry(&conn, gid, "gone.test", "9.9.9.9", None);
-        conn.execute("DELETE FROM profiles WHERE id = ?1", params![pid]).unwrap();
-        let p_count: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM profiles", [], |r| r.get(0),
-        ).unwrap();
+        conn.execute("DELETE FROM profiles WHERE id = ?1", params![pid])
+            .unwrap();
+        let p_count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM profiles", [], |r| r.get(0))
+            .unwrap();
         assert_eq!(p_count, 0);
-        let z_count: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM zones", [], |r| r.get(0),
-        ).unwrap();
+        let z_count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM zones", [], |r| r.get(0))
+            .unwrap();
         assert_eq!(z_count, 0);
-        let e_count: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM entries", [], |r| r.get(0),
-        ).unwrap();
+        let e_count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM entries", [], |r| r.get(0))
+            .unwrap();
         assert_eq!(e_count, 0);
     }
 
@@ -1827,14 +2798,19 @@ mod tests {
         let zid = insert_zone(&conn, pid, "z", None);
         let gid = insert_group(&conn, zid, "g", None);
         insert_entry(&conn, gid, "gone.test", "9.9.9.9", None);
-        conn.execute("DELETE FROM zones WHERE id = ?1", params![zid]).unwrap();
-        let g: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM groups WHERE zone_id = ?1", params![zid], |r| r.get(0),
-        ).unwrap();
+        conn.execute("DELETE FROM zones WHERE id = ?1", params![zid])
+            .unwrap();
+        let g: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM groups WHERE zone_id = ?1",
+                params![zid],
+                |r| r.get(0),
+            )
+            .unwrap();
         assert_eq!(g, 0);
-        let e: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM entries", [], |r| r.get(0),
-        ).unwrap();
+        let e: i64 = conn
+            .query_row("SELECT COUNT(*) FROM entries", [], |r| r.get(0))
+            .unwrap();
         assert_eq!(e, 0);
     }
 
@@ -1846,10 +2822,11 @@ mod tests {
         let zid = insert_zone(&conn, pid, "z", None);
         let gid = insert_group(&conn, zid, "g", None);
         insert_entry(&conn, gid, "gone.test", "9.9.9.9", None);
-        conn.execute("DELETE FROM groups WHERE id = ?1", params![gid]).unwrap();
-        let e: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM entries", [], |r| r.get(0),
-        ).unwrap();
+        conn.execute("DELETE FROM groups WHERE id = ?1", params![gid])
+            .unwrap();
+        let e: i64 = conn
+            .query_row("SELECT COUNT(*) FROM entries", [], |r| r.get(0))
+            .unwrap();
         assert_eq!(e, 0);
     }
 
