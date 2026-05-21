@@ -32,8 +32,9 @@ function HeroSection() {
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#22d3ee] via-[#6366f1] to-[#34d399]">for developers</span>
           </h1>
           <p className="mt-6 text-lg text-white/40 leading-relaxed max-w-[45ch]">
-            local-dns and local-ssl give you production-grade DNS resolution and HTTPS certificates
-            for local development. No cloud dependencies. No configuration headaches.
+            <strong className="text-white/70">localtool</strong> gives you production-grade DNS resolution and HTTPS certificates
+            for local development. One CLI, two subcommands: <code className="text-white/60">dns</code> and <code className="text-white/60">ssl</code>.
+            No cloud dependencies. No configuration headaches.
           </p>
           <div className="flex flex-wrap gap-4 mt-10">
             <a href="/docs" className="group relative inline-flex items-center gap-2 rounded-full px-6 py-3 bg-white text-[#050508] font-medium text-sm transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:scale-[1.02] active:scale-[0.98]">
@@ -42,7 +43,7 @@ function HeroSection() {
                 <ArrowRightIcon />
               </span>
             </a>
-            <a href="https://github.com/veduket/localtools_web" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-full px-6 py-3 border border-white/[0.08] text-sm text-white/60 hover:text-white/80 hover:border-white/[0.15] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]">
+            <a href="https://github.com/veduket/localtool" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-full px-6 py-3 border border-white/[0.08] text-sm text-white/60 hover:text-white/80 hover:border-white/[0.15] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]">
                <GithubIcon />
                View on GitHub
              </a>
@@ -66,11 +67,11 @@ function TerminalMock() {
         <div className="w-3 h-3 rounded-full bg-white/10" />
       </div>
       <div className="p-5 font-mono text-[13px] leading-relaxed">
-        <p className="text-white/30">$ <span className="text-white/70">local-dns init</span></p>
+        <p className="text-white/30">$ <span className="text-white/70">localtool dns init</span></p>
         <p className="text-[#22d3ee] mt-1">✓ Initialized</p>
-        <p className="text-white/30 mt-3">$ <span className="text-white/70">local-dns add myapp.test 127.0.0.1</span></p>
+        <p className="text-white/30 mt-3">$ <span className="text-white/70">localtool dns add myapp.test 127.0.0.1</span></p>
         <p className="text-[#22d3ee] mt-1">✓ Added myapp.test → 127.0.0.1</p>
-        <p className="text-white/30 mt-3">$ <span className="text-white/70">local-ssl generate myapp.test</span></p>
+        <p className="text-white/30 mt-3">$ <span className="text-white/70">localtool ssl generate myapp.test</span></p>
         <p className="text-[#34d399] mt-1">✓ Certificate for myapp.test</p>
         <p className="text-white/30 mt-3">$ <span className="text-white/70">curl --cacert /etc/local-ssl/ca-cert.pem https://myapp.test/</span></p>
         <p className="text-white/50 mt-1">&lt;!DOCTYPE html&gt;</p>
@@ -89,13 +90,14 @@ function ToolsOverview() {
           <p className="text-xs font-medium text-white/30 tracking-[0.2em] uppercase mb-4">Tools</p>
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tighter">Everything local dev needs</h2>
           <p className="mt-4 text-white/40 max-w-[50ch] mx-auto">
-            Two complementary tools that solve the most frustrating parts of local web development.
+            <code className="text-white/60">localtool dns</code> and <code className="text-white/60">localtool ssl</code> —
+            two subcommands that solve the most frustrating parts of local web development.
           </p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <ToolCard
-            name="local-dns"
+            name="dns"
             tagline="DNS for your local machine"
             accent="#22d3ee"
             features={[
@@ -105,10 +107,10 @@ function ToolsOverview() {
               'Automatic dnsmasq configuration',
               'System detection and port conflict warnings',
             ]}
-            command="local-dns add myapp.test 127.0.0.1"
+            command="localtool dns add myapp.test 127.0.0.1"
           />
           <ToolCard
-            name="local-ssl"
+            name="ssl"
             tagline="HTTPS certs for local development"
             accent="#34d399"
             features={[
@@ -116,9 +118,9 @@ function ToolsOverview() {
               'Wildcard SANs on every certificate',
               'Cross-platform trust: Linux, macOS, Windows',
               'Pure Rust — no OpenSSL system dependency',
-              'Pairs seamlessly with local-dns',
+              'Pairs seamlessly with localtool dns',
             ]}
-            command="local-ssl generate myapp.test"
+            command="localtool ssl generate myapp.test"
           />
         </div>
       </div>
@@ -234,7 +236,7 @@ function PricingSection() {
           Both tools are open-source under the MIT license. No paid tiers, no feature gates,
           no cloud subscriptions. Forever.
         </p>
-        <a href="https://github.com/veduket/localtools_web" target="_blank" rel="noopener noreferrer" className="group relative inline-flex items-center gap-2 rounded-full px-6 py-3 bg-white text-[#050508] font-medium text-sm transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:scale-[1.02] active:scale-[0.98]">
+        <a href="https://github.com/veduket/localtool" target="_blank" rel="noopener noreferrer" className="group relative inline-flex items-center gap-2 rounded-full px-6 py-3 bg-white text-[#050508] font-medium text-sm transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:scale-[1.02] active:scale-[0.98]">
           <GithubIcon />
           Star on GitHub
           <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-black/10 transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:translate-x-0.5 group-hover:-translate-y-0.5">
@@ -249,8 +251,7 @@ function PricingSection() {
 type RepoData = { name: string; stars: number; forks: number; url: string }
 
 function GitHubStatsSection() {
-  const [repos, setRepos] = useState<RepoData[]>([])
-  const [totals, setTotals] = useState({ stars: 0, forks: 0 })
+  const [repo, setRepo] = useState<RepoData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
 
@@ -259,15 +260,14 @@ function GitHubStatsSection() {
       .then(r => r.json())
       .then(data => {
         if (data.error) { setError(true); setLoading(false); return }
-        setRepos(data.repos)
-        setTotals(data.totals)
+        setRepo(data)
         setLoading(false)
       })
       .catch(() => { setError(true); setLoading(false) })
   }, [])
 
   if (loading) return null
-  if (error || repos.length === 0) return null
+  if (error || !repo) return null
 
   return (
     <section className="px-6 py-32">
@@ -275,53 +275,34 @@ function GitHubStatsSection() {
         <p className="text-xs font-medium text-white/30 tracking-[0.2em] uppercase mb-4">GitHub</p>
         <h2 className="text-3xl sm:text-4xl font-bold tracking-tighter mb-4">Community stats</h2>
         <p className="text-white/60 max-w-[50ch] mx-auto mb-12">
-          Stars and forks across all localtools repositories.
+          Stars and forks for the <strong className="text-white/80">localtool</strong> repository on GitHub.
         </p>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
-          {repos.map(repo => (
-            <a
-              key={repo.name}
-              href={repo.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="group rounded-2xl border border-white/[0.04] bg-white/[0.02] p-6 hover:bg-white/[0.04] transition-all"
-            >
-              <p className="font-mono text-sm text-white/80 mb-4">
-                {repo.name}
-              </p>
-              <div className="flex items-center justify-center gap-6">
-                <div className="flex items-center gap-2">
-                  <StarIcon />
-                  <span className="text-lg font-bold tracking-tight text-white">
-                    {repo.stars.toLocaleString()}
-                  </span>
-                  <span className="text-xs text-white/50">stars</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <ForkIcon />
-                  <span className="text-lg font-bold tracking-tight text-white">
-                    {repo.forks.toLocaleString()}
-                  </span>
-                  <span className="text-xs text-white/50">forks</span>
-                </div>
+        <div className="max-w-md mx-auto">
+          <a
+            href={repo.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group flex items-center justify-between rounded-2xl border border-white/[0.04] bg-white/[0.02] p-6 hover:bg-white/[0.04] transition-all"
+          >
+            <p className="font-mono text-sm text-white/80">localtool</p>
+            <div className="flex items-center gap-6">
+              <div className="flex items-center gap-2">
+                <StarIcon />
+                <span className="text-lg font-bold tracking-tight text-white">
+                  {repo.stars.toLocaleString()}
+                </span>
+                <span className="text-xs text-white/50">stars</span>
               </div>
-            </a>
-          ))}
-        </div>
-
-        <div className="inline-flex items-center gap-6 rounded-2xl border border-white/[0.04] bg-white/[0.02] px-8 py-4">
-          <div className="flex items-center gap-2">
-            <StarIcon />
-            <span className="text-xl font-bold tracking-tight text-[#22d3ee]">{totals.stars.toLocaleString()}</span>
-            <span className="text-sm text-white/70">total stars</span>
-          </div>
-          <div className="w-px h-6 bg-white/[0.08]" />
-          <div className="flex items-center gap-2">
-            <ForkIcon />
-            <span className="text-xl font-bold tracking-tight text-[#34d399]">{totals.forks.toLocaleString()}</span>
-            <span className="text-sm text-white/70">total forks</span>
-          </div>
+              <div className="flex items-center gap-2">
+                <ForkIcon />
+                <span className="text-lg font-bold tracking-tight text-white">
+                  {repo.forks.toLocaleString()}
+                </span>
+                <span className="text-xs text-white/50">forks</span>
+              </div>
+            </div>
+          </a>
         </div>
       </div>
     </section>

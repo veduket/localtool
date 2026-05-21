@@ -4,7 +4,7 @@ How `local-ssl status` and `local-ssl trust` determine whether the CA is install
 
 ---
 
-## Option A — Search CA Bundle (current)
+## Option B — Hash Symlink Check (current)
 
 Search for the CA certificate's PEM content inside the system's CA bundle file.
 
@@ -26,9 +26,9 @@ Search for the CA certificate's PEM content inside the system's CA bundle file.
 
 ---
 
-## Option B — Hash Symlink Check
+## Option A — Search CA Bundle
 
-Check for the OpenSSL hash symlink in the system's CA directory.
+Search for the CA certificate's PEM content inside the system's CA bundle file.
 
 **How it works:**
 1. `openssl x509 -in ca-cert.pem -hash -noout` → hash string
