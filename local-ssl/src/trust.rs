@@ -40,31 +40,30 @@ fn macos_trust_check(cert_path: &Path) -> bool {
 }
 
 fn linux_trust_check(cert_path: &Path) -> bool {
-    let our_pem = match std::fs::read_to_string(cert_path) {
-        Ok(c) => c,
-        Err(_) => return false,
+    let hash = Command::new("openssl")
+        .args(["x509", "-hash", "-noout", "-in"])
+        .arg(cert_path)
+        .output()
+        .ok()
+        .and_then(|o| (o.status.success()).then(|| String::from_utf8(o.stdout).ok()))
+        .flatten()
+        .map(|s| s.trim().to_string());
+
+    let hash = match hash {
+        Some(h) if !h.is_empty() => h,
+        _ => return false,
     };
 
-    let subject = our_pem.lines()
-        .find(|l| l.contains("Subject: "))
-        .unwrap_or("")
-        .to_string();
-    if subject.is_empty() {
-        return false;
-    }
-
-    let bundles = [
-        "/etc/ssl/certs/ca-certificates.crt",
-        "/etc/pki/tls/certs/ca-bundle.crt",
-        "/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem",
-        "/usr/share/pki/trust/trusted.pem",
-        "/etc/ssl/ca-bundle.pem",
-        "/etc/pki/tls/cacert.pem",
+    let dirs = [
+        "/etc/ssl/certs",
+        "/etc/pki/ca-trust/source/anchors",
+        "/usr/share/pki/trust/anchors",
+        "/etc/ca-certificates/trust-source/anchors",
     ];
 
-    bundles.iter().any(|b| {
-        std::fs::read_to_string(b).ok()
-            .map_or(false, |content| content.contains(&subject))
+    dirs.iter().any(|d| {
+        Path::new(d).join(format!("{hash}.0")).exists()
+            || Path::new(d).join(format!("{hash}.p11-kit")).exists()
     })
 }
 
