@@ -3,7 +3,9 @@ name = "local-ssl"
 version = "0.1.0"
 edition = "2021"
 authors = ["Yared Getachew"]
-repository = "https://github.com/veduket/local-ssl"
+repository = "https://github.com/veduket/localtool"
+homepage = "https://localtool.vercel.app"
+license = "MIT"
 description = "Local HTTPS certificate generation for development — pair with local-dns"
 
 [lib]

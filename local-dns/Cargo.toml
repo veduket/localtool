@@ -3,7 +3,9 @@ name = "local-dns"
 version = "0.1.0"
 edition = "2021"
 authors = ["Yared Getachew"]
-repository = "https://github.com/veduket/local-dns"
+repository = "https://github.com/veduket/localtool"
+homepage = "https://localtool.vercel.app"
+license = "MIT"
 description = "Local DNS management with profiles, wildcards, and system detection"
 
 [lib]
