@@ -6,3 +6,4 @@ node_modules/
 *.swo
 *.db
 comeback
+session*.md
