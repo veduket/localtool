@@ -1,6 +1,6 @@
 [package]
 name = "local-ssl"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["Yared Getachew"]
 repository = "https://github.com/veduket/localtool"

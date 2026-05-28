@@ -1,6 +1,6 @@
 [package]
 name = "localtool"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["Yared Getachew"]
 repository = "https://github.com/veduket/localtool"
@@ -11,5 +11,5 @@ description = "Local development toolkit — DNS management and HTTPS certificat
 [dependencies]
 clap = { version = "4", features = ["derive"] }
 colored = "2"
-local-dns = { path = "../local-dns", version = "0.1.0" }
-local-ssl = { path = "../local-ssl", version = "0.1.0" }
+local-dns = { path = "../local-dns", version = "0.1.1" }
+local-ssl = { path = "../local-ssl", version = "0.1.1" }

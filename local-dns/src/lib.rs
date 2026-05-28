@@ -301,6 +301,12 @@ pub enum Commands {
         lines: usize,
     },
     Detect,
+    /// Diagnose and fix DNS routing issues
+    Doctor {
+        /// Attempt to automatically fix detected issues
+        #[arg(short, long)]
+        fix: bool,
+    },
     Check {
         domain: String,
     },
@@ -419,6 +425,7 @@ fn execute(cli: Cli, tel: &telemetry::Telemetry) -> Result<String, String> {
         Commands::Apply => "apply",
         Commands::Logs { .. } => "logs",
         Commands::Detect => "detect",
+        Commands::Doctor { .. } => "doctor",
         Commands::Check { .. } => "check",
     };
     let stats = if matches!(cmd_name, "init" | "reset" | "status" | "detect") {
@@ -478,6 +485,7 @@ fn execute(cli: Cli, tel: &telemetry::Telemetry) -> Result<String, String> {
             lines,
         } => cmd_logs(follow, errors, lines),
         Commands::Detect => cmd_detect(),
+        Commands::Doctor { fix } => cmd_doctor(fix),
         Commands::Check { domain } => cmd_check(&domain),
         Commands::Telemetry { action } => handle_telemetry(action, tel),
     }
@@ -848,6 +856,92 @@ fn format_detect(state: &SystemState) -> String {
 }
 
 // ═══════════════════════════════════════════════════════════
+//  DOCTOR
+// ═══════════════════════════════════════════════════════════
+
+fn cmd_doctor(fix: bool) -> Result<String, String> {
+    let mut out = String::new();
+    let state = detect_system()?;
+    out.push_str(&format!("{} {}\n", "Platform:".cyan().bold(), std::env::consts::OS));
+    out.push_str(&format_detect(&state));
+
+    let dnsmasq_running = is_service_running();
+    if dnsmasq_running {
+        out.push_str(&format!("\n{} local-dnsmasq is running", "✓".green()));
+    } else {
+        out.push_str(&format!("\n{} local-dnsmasq is NOT running", "✗".red().bold()));
+    }
+
+    let mut issues = Vec::new();
+
+    let resolved_routing = check_resolved_routing();
+    if resolved_routing {
+        out.push_str(&format!("\n{} systemd-resolved routing is configured", "✓".green()));
+    } else {
+        issues.push("systemd-resolved routing not configured for .test/.dev domains");
+        out.push_str(&format!("\n{} systemd-resolved routing not configured", "✗".yellow()));
+    }
+
+    if dnsmasq_running {
+        let port_free = !state.port_listeners.contains_key(&5354)
+            || state.port_listeners.get(&5354).map(|p| p.contains("dnsmasq")).unwrap_or(false);
+        if port_free {
+            out.push_str(&format!("\n{} Port 5354 is ready for dnsmasq", "✓".green()));
+        } else {
+            issues.push("Port 5354 is in use by another process");
+            out.push_str(&format!("\n{} Port 5354 in use by '{}'", "✗".yellow(), state.port_listeners[&5354]));
+        }
+    }
+
+    if issues.is_empty() {
+        out.push_str(&format!("\n\n{} No issues detected.", "✓".green().bold()));
+    } else {
+        out.push_str(&format!("\n\n{} Issues found:", "⚠".yellow().bold()));
+        for i in &issues {
+            out.push_str(&format!("\n  • {i}"));
+        }
+        if fix {
+            out.push_str(&format!("\n\n{} Attempting fixes...", "🔧".cyan().bold()));
+            if !dnsmasq_running {
+                if supports_systemd() {
+                    let start = Command::new("systemctl")
+                        .args(["start", DNSMASQ_SERVICE])
+                        .status();
+                    if start.ok().is_some_and(|s| s.success()) {
+                        out.push_str(&format!("\n{} Started local-dnsmasq", "✓".green()));
+                    } else {
+                        out.push_str(&format!("\n{} Could not start local-dnsmasq", "✗".red()));
+                    }
+                }
+            }
+            if !resolved_routing {
+                match configure_resolved_routing() {
+                    Ok(()) => out.push_str(&format!("\n{} Configured DNS routing via systemd-resolved", "✓".green())),
+                    Err(e) => out.push_str(&format!("\n{} {e}", "✗".red())),
+                }
+            }
+            out.push_str(&format!("\n{} Doctor complete. Try pinging your local domain now.", "✓".green().bold()));
+        } else {
+            out.push_str(&format!("\n\n{} Run with --fix to auto-correct", "💡".cyan()));
+        }
+    }
+
+    Ok(out)
+}
+
+fn check_resolved_routing() -> bool {
+    if !has_tool("resolvectl") {
+        return false;
+    }
+    if let Ok(out) = Command::new("resolvectl").args(["domain", "lo"]).output() {
+        let s = String::from_utf8_lossy(&out.stdout);
+        s.contains("~test") || s.contains("~dev")
+    } else {
+        false
+    }
+}
+
+// ═══════════════════════════════════════════════════════════
 //  INIT
 // ═══════════════════════════════════════════════════════════
 
@@ -927,16 +1021,22 @@ fn cmd_init() -> Result<String, String> {
             "Then: sudo systemctl restart dnsdist".yellow()
         );
     }
-    if let Some(ref c) = state.resolved_conf {
-        println!(
-            "{}",
-            "systemd-resolved detected! Configuring routing..."
-                .yellow()
-                .bold()
-        );
-        if let Err(e) = configure_resolved_routing() {
-            eprintln!("  {} {e}", "⚠".yellow());
-            println!("\n  To configure manually:\n  {c}\n");
+    if has_tool("resolvectl") {
+        if check_resolved_routing() {
+            println!("  {} DNS routing already configured", "✓".green());
+        } else {
+            println!(
+                "{}",
+                "Configuring DNS routing via systemd-resolved..."
+                    .yellow()
+                    .bold()
+            );
+            if let Err(e) = configure_resolved_routing() {
+                eprintln!("  {} {e}", "⚠".yellow());
+                if let Some(ref c) = state.resolved_conf {
+                    println!("\n  To configure manually:\n  {c}\n");
+                }
+            }
         }
     } else {
         println!(
@@ -1879,13 +1979,19 @@ fn cmd_logs(follow: bool, errors: bool, lines: usize) -> Result<String, String> 
 // ═══════════════════════════════════════════════════════════
 
 fn write_dnsmasq_conf(state: &SystemState) -> Result<(), String> {
+    let hosts_path = run_dir().join("hosts");
+    ensure_run_dir()?;
+    if !hosts_path.exists() {
+        fs::write(&hosts_path, "").map_err(|e| format!("Cannot create hosts file: {e}"))?;
+    }
+
     let conf = format!(
         r#"# local-dns — managed by local-dns CLI
 port=5354
 bind-interfaces
 listen-address=127.0.0.1
 conf-dir={}
-addn-hosts={}/hosts
+addn-hosts={}
 domain-needed
 bogus-priv
 no-hosts
@@ -1897,7 +2003,7 @@ log-queries
 log-facility={}
 "#,
         run_dir().display(),
-        run_dir().display(),
+        hosts_path.display(),
         pid_path().display(),
         state.upstream_dns,
         state.upstream_port,
