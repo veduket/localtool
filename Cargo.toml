@@ -14,7 +14,7 @@ sign-tag = false
 push-remote = "origin"
 publish = false  # crates.io publish is manual
 
-[workspace.metadata.release.pre-release-replacements]
+[[workspace.metadata.release.pre-release-replacements]]
 # Keep workspace dependency versions in sync
 file = "localtool/Cargo.toml"
 search = 'local-dns = \{ path = "../local-dns", version = "(\d+\.\d+\.\d+)" \}'

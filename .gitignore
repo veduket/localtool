@@ -17,3 +17,5 @@ node_modules/
 # Generated / transient
 comeback
 session*.md
+.vercel
+.env*.local
