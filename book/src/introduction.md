@@ -1,5 +1,10 @@
 # Introduction
 
+> **Latest version:** [![GitHub release](https://img.shields.io/github/v/release/veduket/localtool?style=flat&color=6366f1)](https://github.com/veduket/localtool/releases)
+> [![localtool crate](https://img.shields.io/crates/v/localtool?style=flat&color=22d3ee)](https://crates.io/crates/localtool)
+> [![local-dns crate](https://img.shields.io/crates/v/local-dns?style=flat&color=34d399)](https://crates.io/crates/local-dns)
+> [![local-ssl crate](https://img.shields.io/crates/v/local-ssl?style=flat&color=f59e0b)](https://crates.io/crates/local-ssl)
+
 **localtool** is a unified CLI for local development infrastructure. It combines two complementary tools under one command:
 
 - **`localtool dns`** — manage local DNS resolution with profiles, wildcards, zones, and groups

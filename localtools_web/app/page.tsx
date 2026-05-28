@@ -48,6 +48,13 @@ function HeroSection() {
                View on GitHub
              </a>
           </div>
+
+          <div className="flex flex-wrap gap-3 mt-8">
+            <img src="https://img.shields.io/github/v/release/veduket/localtool?style=flat&label=Release&color=6366f1" alt="GitHub release" />
+            <img src="https://img.shields.io/crates/v/localtool?style=flat&label=localtool&color=22d3ee" alt="localtool crate" />
+            <img src="https://img.shields.io/crates/v/local-dns?style=flat&label=local-dns&color=34d399" alt="local-dns crate" />
+            <img src="https://img.shields.io/crates/v/local-ssl?style=flat&label=local-ssl&color=f59e0b" alt="local-ssl crate" />
+          </div>
         </div>
 
         <div className="hidden lg:block animate-[fade-in_1s_ease-out_0.3s_both]">

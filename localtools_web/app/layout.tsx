@@ -44,7 +44,15 @@ function Footer() {
   return (
     <footer className="border-t border-white/[0.04] mt-32">
       <div className="max-w-6xl mx-auto px-6 py-12 flex flex-col md:flex-row items-center justify-between gap-4">
-        <p className="text-sm text-white/30">localtool — MIT License — Yared Getachew</p>
+        <div className="flex flex-col md:flex-row items-center gap-2">
+          <p className="text-sm text-white/30">localtool — MIT License — Yared Getachew</p>
+          <p className="text-xs text-white/20 hidden md:block">·</p>
+          <p className="text-xs text-white/20">
+            <a href="https://github.com/veduket/localtool/releases" target="_blank" rel="noopener noreferrer" className="hover:text-white/60 transition-colors">v0.1.1</a>
+            {' · '}
+            <a href="https://crates.io/crates/localtool" target="_blank" rel="noopener noreferrer" className="hover:text-white/60 transition-colors">crates.io</a>
+          </p>
+        </div>
         <div className="flex items-center gap-6">
           <a href="https://github.com/veduket/localtool" target="_blank" rel="noopener noreferrer" className="text-sm text-white/30 hover:text-white/60 transition-colors">GitHub</a>
           <a href="/docs" className="text-sm text-white/30 hover:text-white/60 transition-colors">Documentation</a>
