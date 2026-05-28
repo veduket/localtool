@@ -1,0 +1,17 @@
+[changelog]
+header = "# Changelog\n\nAll notable changes to this project will be documented in this file.\n"
+body = """
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group | upper_first }}
+{% for commit in commits %}
+- {{ commit.message | upper_first }}{% if commit.breaking %} (breaking){% endif %}
+{%- if commit.scope %} _({{ commit.scope }})_{% endif %}
+{%- if commit.author %} by @{{ commit.author }}{% endif %}
+{% endfor %}
+{% endfor %}
+"""
+trim = true
+postprocess = "# Changelog\n\nAll notable changes to this project will be documented in this file.\n"
+
+[git]
+conventional_commits = true

@@ -1,3 +1,26 @@
 [workspace]
 members = ["local-dns", "local-ssl", "localtool"]
 resolver = "2"
+
+# ─── cargo-release: bump, commit, tag, publish, push ───────
+#   cargo install cargo-release
+#   cargo release patch  (or minor / major)
+#   To skip crates.io publish: --no-publish
+# ────────────────────────────────────────────────────────────
+[workspace.metadata.release]
+tag-prefix = "v"
+sign-commit = false
+sign-tag = false
+push-remote = "origin"
+publish = false  # crates.io publish is manual
+
+[workspace.metadata.release.pre-release-replacements]
+# Keep workspace dependency versions in sync
+file = "localtool/Cargo.toml"
+search = 'local-dns = \{ path = "../local-dns", version = "(\d+\.\d+\.\d+)" \}'
+replace = 'local-dns = { path = "../local-dns", version = "{{version}}" }'
+
+[[workspace.metadata.release.pre-release-replacements]]
+file = "localtool/Cargo.toml"
+search = 'local-ssl = \{ path = "../local-ssl", version = "(\d+\.\d+\.\d+)" \}'
+replace = 'local-ssl = { path = "../local-ssl", version = "{{version}}" }'
