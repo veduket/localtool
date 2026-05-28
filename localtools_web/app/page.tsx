@@ -6,6 +6,7 @@ export default function Home() {
   return (
     <div className="overflow-hidden">
       <HeroSection />
+      <VersionBadge />
       <ToolsOverview />
       <GitHubStatsSection />
       <StatsBanner />
@@ -85,6 +86,30 @@ function TerminalMock() {
         <p className="text-white/50">&lt;html lang=&quot;en&quot;&gt;</p>
         <p className="text-white/50">&lt;head&gt;...&lt;/head&gt;</p>
       </div>
+    </div>
+  )
+}
+
+function VersionBadge() {
+  const [version, setVersion] = useState('v0.1.1')
+
+  useEffect(() => {
+    fetch('/api/version')
+      .then(r => r.json())
+      .then(d => setVersion(d.version))
+      .catch(() => {})
+  }, [])
+
+  return (
+    <div className="flex justify-center">
+      <a
+        href="https://github.com/veduket/localtool/releases"
+        target="_blank"
+        className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-white/10 bg-white/[0.03] text-sm text-white/60 hover:text-white/90 hover:border-white/20 transition-colors"
+      >
+        <span className="w-2 h-2 rounded-full bg-emerald-400/80" />
+        <span>Latest release: <span className="font-mono text-white/80">{version}</span></span>
+      </a>
     </div>
   )
 }
